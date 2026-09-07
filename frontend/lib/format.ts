@@ -60,9 +60,17 @@ export function formatSigned(value: string | number | null | undefined, digits =
 
 export function toneClass(value: number | boolean | string | null | undefined, invert = false) {
   if (value === null || value === undefined || isPlaceholder(value)) return "text-slate-400";
-  if (value === null || value === undefined) return "text-slate-400";
-  const positive = typeof value === "boolean" ? value : value > 0;
-  const negative = typeof value === "boolean" ? !value : value < 0;
+  let positive: boolean;
+  let negative: boolean;
+  if (typeof value === "boolean") {
+    positive = value;
+    negative = !value;
+  } else {
+    const amount = typeof value === "number" ? value : Number(value);
+    if (Number.isNaN(amount)) return "text-slate-400";
+    positive = amount > 0;
+    negative = amount < 0;
+  }
   if (invert) {
     if (positive) return "text-rose-400";
     if (negative) return "text-gsr-accent";
