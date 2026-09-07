@@ -2,7 +2,8 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { apiUrl } from "@/lib/api";
+
 const TOKEN_KEY = "gsr_token";
 
 export type Account = {
@@ -53,7 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [authModalOpen, setAuthModalOpen] = useState(false);
 
   const refresh = useCallback(async (value: string) => {
-    const response = await fetch(`${API_URL}/api/v1/users/me`, {
+    const response = await fetch(apiUrl("/api/v1/users/me"), {
       headers: { Authorization: `Bearer ${value}` },
       cache: "no-store",
     });
@@ -89,7 +90,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refresh]);
 
   const login = useCallback(async (email: string, password: string) => {
-    const response = await fetch(`${API_URL}/api/v1/users/login`, {
+    const response = await fetch(apiUrl("/api/v1/users/login"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
@@ -100,7 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const register = useCallback(async (fullName: string, email: string, password: string) => {
-    const response = await fetch(`${API_URL}/api/v1/users/register`, {
+    const response = await fetch(apiUrl("/api/v1/users/register"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ full_name: fullName, email, password }),
@@ -112,7 +113,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const subscribe = useCallback(async (plan: "pro" | "free" = "pro") => {
     if (!token) throw new Error("Sign in to subscribe");
-    const response = await fetch(`${API_URL}/api/v1/users/subscribe`, {
+    const response = await fetch(apiUrl("/api/v1/users/subscribe"), {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({ plan }),
@@ -126,7 +127,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setAuthModalOpen(true);
       return;
     }
-    const response = await fetch(`${API_URL}/api/checkout`, {
+    const response = await fetch(apiUrl("/api/checkout"), {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -137,7 +138,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const startOAuth = useCallback((provider: "google" | "apple") => {
     const next = window.location.pathname + window.location.search;
-    window.location.href = `${API_URL}/api/v1/auth/${provider}/start?next=${encodeURIComponent(next || "/")}`;
+    window.location.href = apiUrl(`/api/v1/auth/${provider}/start?next=${encodeURIComponent(next || "/")}`);
   }, []);
 
   const logout = useCallback(() => {

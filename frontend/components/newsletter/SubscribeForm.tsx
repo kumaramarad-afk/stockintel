@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { apiUrl } from "@/lib/api";
 
 export function SubscribeForm({ slug }: { slug: string }) {
   const [email, setEmail] = useState("");
@@ -12,7 +12,7 @@ export function SubscribeForm({ slug }: { slug: string }) {
     event.preventDefault();
     setStatus("Saving…");
     try {
-      const response = await fetch(`${API_URL}/api/v1/newsletters/subscribe`, {
+      const response = await fetch(apiUrl("/api/v1/newsletters/subscribe"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, newsletter_slug: slug }),

@@ -32,8 +32,7 @@ import type {
   TechnicalsData,
   TopAnalyst,
 } from "@/lib/research";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { apiUrl } from "@/lib/api";
 
 const SECTIONS = [
   "header",
@@ -116,7 +115,7 @@ function outlookTone(value: string | null | undefined) {
 }
 
 async function fetchSection<T>(ticker: string, section: SectionName, token: string | null): Promise<ResearchSection<T>> {
-  const response = await fetch(`${API_URL}/api/v1/research/report/${encodeURIComponent(ticker)}/${section}`, {
+  const response = await fetch(apiUrl(`/api/v1/research/report/${encodeURIComponent(ticker)}/${section}`), {
     cache: "no-store",
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     signal: AbortSignal.timeout(section === "ai" || section === "ownership" ? 120_000 : 60_000),

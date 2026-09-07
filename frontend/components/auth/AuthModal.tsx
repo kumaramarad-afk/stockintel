@@ -3,8 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 
 import { useAuth } from "@/components/layout/AuthProvider";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { apiUrl } from "@/lib/api";
 
 export function AuthModal() {
   const { user, authModalOpen, closeAuthModal, login, register, startOAuth } = useAuth();
@@ -21,7 +20,7 @@ export function AuthModal() {
   }, [user, authModalOpen, closeAuthModal]);
 
   useEffect(() => {
-    fetch(`${API_URL}/api/v1/auth/providers`)
+    fetch(apiUrl("/api/v1/auth/providers"))
       .then((response) => response.json())
       .then((payload) => setProviders({ google: Boolean(payload.google), apple: Boolean(payload.apple) }))
       .catch(() => undefined);
