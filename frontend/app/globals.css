@@ -1,0 +1,51 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --gsr-bg: #0a0a0f;
+  --gsr-card: #12121a;
+  --gsr-accent: #00d4aa;
+  --gsr-muted: #8b8b9e;
+  --gsr-border: #1e1e2e;
+}
+
+html,
+body {
+  background: #0a0a0f;
+}
+
+body {
+  @apply min-h-screen bg-gsr-bg text-white antialiased;
+}
+
+a {
+  @apply transition-colors;
+}
+
+.grid-rows-\[0fr\] {
+  grid-template-rows: 0fr;
+}
+
+.grid-rows-\[1fr\] {
+  grid-template-rows: 1fr;
+}
+
+.glass-card {
+  background: rgba(18, 18, 26, 0.82);
+  border: 1px solid #1e1e2e;
+  backdrop-filter: blur(18px);
+}
+
+.paywall-blur {
+  filter: blur(8px);
+  user-select: none;
+}
+
+.hero-glow {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0, 212, 170, 0.18), transparent 55%),
+    radial-gradient(ellipse 40% 30% at 80% 10%, rgba(0, 212, 170, 0.06), transparent 50%),
+    #0a0a0f;
+}
