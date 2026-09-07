@@ -1,0 +1,20 @@
+Tasks
+1) GitHub in public
+
+1) The website should not show anywhere that its AI or Claude.
+2) User should be able to login and create account and view account details
+3) User should be able to subscribe
+4) Standard disclaimer to protect for getting sued. Something like this is not financial advise or there might be error in data that could lead to false results and consult professionals it before investing.
+5) Social login
+6) Guest can generate report but block after 2 to 3 from the same IP and ask them to login.(or suggest idea)
+5) After login 5 free reports, then forced to buy subscriptions.
+6) Paid subscriptions have unlimited reports, real time alerts of insider trading, latest news, change in target price, new analyst report, 
+
+
+Free registered users
+1) 5 reports
+2) Recent analyst actions section, Blur target price and Raised.
+3) Top analyst coverings section, Blur the bullish.
+4) Research briefings, blur after 2 lines, key risk to monitor section and upcoming catalyst section.
+5) Coverage details-Blur the bullish
+6) Insider and Institutional blur
