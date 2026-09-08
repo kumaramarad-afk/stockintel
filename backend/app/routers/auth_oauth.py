@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.deps import db_session
+from app.deps import current_user, db_session
 from app.schemas.user import TokenResponse, UserRead
 from services import oauth
 from services.paywall import MONTHLY_LIMIT, count_views
@@ -29,7 +29,7 @@ def _token_response(user, token, db) -> TokenResponse:
 
 
 @router.get("/google/start")
-def google_start(next: str = Query("/", alias="next")) -> RedirectResponse:
+def google_start(next: str = Query("/research", alias="next")) -> RedirectResponse:
     try:
         url = oauth.google_authorize_url(next)
     except RuntimeError as exc:
@@ -49,7 +49,7 @@ def google_callback(db: Session = Depends(db_session), code: str | None = None, 
 
 
 @router.get("/apple/start")
-def apple_start(next: str = Query("/", alias="next")) -> RedirectResponse:
+def apple_start(next: str = Query("/research", alias="next")) -> RedirectResponse:
     try:
         url = oauth.apple_authorize_url(next)
     except RuntimeError as exc:
@@ -99,6 +99,14 @@ def oauth_id_token(payload: OAuthTokenRequest, db: Session = Depends(db_session)
     except Exception as exc:
         raise HTTPException(status_code=401, detail="Social sign-in failed") from exc
     return _token_response(user, token, db)
+
+
+@router.get("/me", response_model=UserRead)
+def read_auth_me(user=Depends(current_user), db: Session = Depends(db_session)) -> UserRead:
+    read = UserRead.model_validate(user)
+    read.reports_used = count_views(db, user.id)
+    read.reports_limit = MONTHLY_LIMIT
+    return read
 
 
 @router.get("/providers")

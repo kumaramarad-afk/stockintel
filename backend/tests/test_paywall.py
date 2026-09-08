@@ -194,3 +194,101 @@ def test_google_oauth_creates_free_account() -> None:
     assert body["user"]["plan"] == "free"
     assert body["user"]["reports_limit"] == 5
     assert body["user"]["oauth_provider"] == "google"
+
+
+def test_billing_portal_requires_auth() -> None:
+    response = client.post("/api/billing/portal")
+    assert response.status_code == 401
+
+
+def test_billing_portal_requires_stripe_customer() -> None:
+    token, _ = _register()
+    response = client.post("/api/billing/portal", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 400
+
+
+def test_checkout_success_url_includes_session_id() -> None:
+    token, _ = _register()
+    with patch("services.stripe_billing.create_checkout_session", return_value="https://checkout.stripe.com/c/test") as mocked:
+        response = client.post("/api/checkout", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 200
+    success_url = mocked.call_args.args[2]
+    assert "upgraded=1" in success_url
+    assert "{CHECKOUT_SESSION_ID}" in success_url
+
+
+def test_stripe_webhook_upgrades_nested_customer_object() -> None:
+    token, user = _register()
+    headers = {"Authorization": f"Bearer {token}"}
+    session = {
+        "id": "cs_nested",
+        "status": "complete",
+        "payment_status": "paid",
+        "metadata": {"user_id": user["id"]},
+        "customer": {"id": "cus_nested"},
+        "subscription": {"id": "sub_nested"},
+    }
+    completed = {"type": "checkout.session.completed", "data": {"object": session}}
+    with (
+        patch("app.routers.webhooks.stripe_billing.parse_webhook", return_value=completed),
+        patch("app.routers.webhooks.stripe_billing.retrieve_checkout_session", return_value=session),
+    ):
+        assert client.post("/api/webhooks/stripe", json=completed).status_code == 200
+    me = client.get("/api/v1/users/me", headers=headers).json()
+    assert me["plan"] == "pro"
+
+
+def test_verify_session_requires_auth() -> None:
+    response = client.post("/api/v1/payments/verify-session", json={"session_id": "cs_test"})
+    assert response.status_code == 401
+
+
+def test_verify_session_upgrades_plan_when_webhook_is_late() -> None:
+    token, user = _register()
+    headers = {"Authorization": f"Bearer {token}"}
+    paid = {
+        "id": "cs_verify",
+        "status": "complete",
+        "payment_status": "paid",
+        "metadata": {"user_id": user["id"]},
+        "client_reference_id": user["id"],
+        "customer": "cus_verify",
+        "subscription": "sub_verify",
+        "customer_email": user["email"],
+    }
+    with patch("app.routers.checkout.stripe_billing.find_paid_checkout_session", return_value=paid):
+        response = client.post(
+            "/api/v1/payments/verify-session",
+            json={"session_id": "cs_verify"},
+            headers=headers,
+        )
+    assert response.status_code == 200, response.text
+    assert response.json()["plan"] == "pro"
+    assert client.get("/api/v1/auth/me", headers=headers).json()["plan"] == "pro"
+
+
+def test_billing_portal_returns_session_url() -> None:
+    token, user = _register()
+    headers = {"Authorization": f"Bearer {token}"}
+    completed = {
+        "type": "checkout.session.completed",
+        "data": {
+            "object": {
+                "metadata": {"user_id": user["id"]},
+                "customer": "cus_portal",
+                "subscription": "sub_portal",
+            }
+        },
+    }
+    with patch("app.routers.webhooks.stripe_billing.parse_webhook", return_value=completed):
+        assert client.post("/api/webhooks/stripe", json=completed).status_code == 200
+    with patch(
+        "services.stripe_billing.create_portal_session",
+        return_value="https://billing.stripe.com/p/session/test",
+    ) as portal:
+        response = client.post("/api/billing/portal", headers=headers)
+    assert response.status_code == 200
+    assert response.json()["url"] == "https://billing.stripe.com/p/session/test"
+    portal.assert_called_once()
+    assert portal.call_args.args[0] == "cus_portal"
+    assert portal.call_args.args[1].endswith("/account")

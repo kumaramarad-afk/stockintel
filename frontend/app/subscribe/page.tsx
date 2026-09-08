@@ -6,7 +6,7 @@ import { useState } from "react";
 import { useAuth } from "@/components/layout/AuthProvider";
 
 export default function SubscribePage() {
-  const { user, startCheckout, openAuthModal } = useAuth();
+  const { user, startCheckout, startBillingPortal, openAuthModal } = useAuth();
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -21,6 +21,22 @@ export default function SubscribePage() {
       await startCheckout();
     } catch (err) {
       setStatus(err instanceof Error ? err.message : "Could not start checkout");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onCancel() {
+    if (!user) {
+      openAuthModal();
+      return;
+    }
+    setBusy(true);
+    setStatus(null);
+    try {
+      await startBillingPortal();
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "Could not open billing portal");
     } finally {
       setBusy(false);
     }
@@ -56,14 +72,25 @@ export default function SubscribePage() {
             <li>Insider and institutional trade logs</li>
             <li>Real-time email alerts on coverage and filings</li>
           </ul>
-          <button
-            type="button"
-            disabled={busy || user?.plan === "pro"}
-            onClick={() => void onSubscribe()}
-            className="mt-6 rounded-xl bg-gsr-accent px-5 py-2.5 text-sm font-semibold text-gsr-bg hover:brightness-110 disabled:opacity-60"
-          >
-            {user?.plan === "pro" ? "Current plan" : "🔒 Unlock Full Analyst Briefing ($7/mo)"}
-          </button>
+          {user?.plan === "pro" ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void onCancel()}
+              className="mt-6 rounded-xl border border-rose-400/40 px-5 py-2.5 text-sm font-semibold text-rose-200 hover:border-rose-300 disabled:opacity-60"
+            >
+              {busy ? "Opening…" : "Cancel Subscription"}
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void onSubscribe()}
+              className="mt-6 rounded-xl bg-gsr-accent px-5 py-2.5 text-sm font-semibold text-gsr-bg hover:brightness-110 disabled:opacity-60"
+            >
+              🔒 Unlock Full Analyst Briefing ($7/mo)
+            </button>
+          )}
           {status && <p className="mt-3 text-sm text-gsr-muted">{status}</p>}
         </article>
       </div>

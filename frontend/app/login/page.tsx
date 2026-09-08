@@ -1,18 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useAuth } from "@/components/layout/AuthProvider";
+import { goToResearch, RESEARCH_PATH } from "@/lib/auth";
 
 export default function LoginPage() {
-  const { login, startOAuth } = useAuth();
+  const { login, startOAuth, user, loading } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!loading && user) router.replace(RESEARCH_PATH);
+  }, [loading, user, router]);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -20,10 +25,9 @@ export default function LoginPage() {
     setError(null);
     try {
       await login(email, password);
-      router.push("/account");
+      goToResearch();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not sign in");
-    } finally {
       setBusy(false);
     }
   }

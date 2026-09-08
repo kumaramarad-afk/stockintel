@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useAuth } from "@/components/layout/AuthProvider";
+import { goToResearch, RESEARCH_PATH } from "@/lib/auth";
 
 export default function RegisterPage() {
-  const { register, startOAuth } = useAuth();
+  const { register, startOAuth, user, loading } = useAuth();
   const router = useRouter();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -15,16 +16,19 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  useEffect(() => {
+    if (!loading && user) router.replace(RESEARCH_PATH);
+  }, [loading, user, router]);
+
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
     setError(null);
     try {
       await register(fullName, email, password);
-      router.push("/account");
+      goToResearch();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create account");
-    } finally {
       setBusy(false);
     }
   }

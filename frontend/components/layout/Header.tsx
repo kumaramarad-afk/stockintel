@@ -7,13 +7,13 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/components/layout/AuthProvider";
 
 const nav = [
-  { href: "/", label: "Research" },
+  { href: "/research", label: "Research" },
   { href: "/newsletter", label: "Newsletter" },
 ];
 
 export function Header() {
   const pathname = usePathname();
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -34,7 +34,7 @@ export function Header() {
             <Link
               key={item.href}
               href={item.href}
-              className={`transition hover:text-white ${ready && pathname === item.href ? "text-white" : ""}`}
+              className={`transition hover:text-white ${ready && (pathname === item.href || (item.href === "/research" && pathname === "/")) ? "text-white" : ""}`}
             >
               {item.label}
             </Link>
@@ -49,13 +49,15 @@ export function Header() {
             >
               {user.full_name.split(" ")[0]}
             </Link>
-          ) : (
+          ) : ready && !loading ? (
             <Link
               href="/login"
               className="rounded-full bg-gsr-accent px-3.5 py-1.5 font-semibold text-gsr-bg hover:brightness-110"
             >
               Sign in
             </Link>
+          ) : (
+            <span className="rounded-full border border-gsr-border px-3 py-1.5 text-gsr-muted">…</span>
           )}
         </nav>
       </div>

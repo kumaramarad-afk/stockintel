@@ -26,6 +26,16 @@ def test_register_login_and_subscribe() -> None:
     assert upgraded.json()["plan"] == "pro"
 
 
-def test_me_requires_auth() -> None:
-    response = client.get("/api/v1/users/me")
-    assert response.status_code == 401
+def test_auth_me_alias_and_requires_auth() -> None:
+    email = f"jayanth-{uuid4().hex[:10]}@example.com"
+    register = client.post(
+        "/api/v1/users/register",
+        json={"email": email, "full_name": "Jayanth", "password": "securepass"},
+    )
+    token = register.json()["access_token"]
+    me = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert me.status_code == 200
+    assert me.json()["email"] == email
+    assert me.json()["plan"] == "free"
+    assert client.get("/api/v1/auth/me").status_code == 401
+    assert client.get("/api/v1/users/me").status_code == 401

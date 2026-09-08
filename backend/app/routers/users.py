@@ -13,11 +13,15 @@ from services.paywall import MONTHLY_LIMIT, count_views
 router = APIRouter(prefix="/users", tags=["users"])
 
 
-def _to_read(user: User, db: Session) -> UserRead:
+def user_to_read(user: User, db: Session) -> UserRead:
     payload = UserRead.model_validate(user)
     payload.reports_used = count_views(db, user.id)
     payload.reports_limit = MONTHLY_LIMIT
     return payload
+
+
+def _to_read(user: User, db: Session) -> UserRead:
+    return user_to_read(user, db)
 
 
 def _issue(user: User, db: Session) -> TokenResponse:

@@ -18,10 +18,20 @@ from services.auth import create_token, hash_password
 logger = logging.getLogger(__name__)
 
 
-def frontend_callback(token: str, next_path: str = "/") -> str:
+def frontend_callback(token: str, next_path: str = "/research") -> str:
     base = settings.frontend_url.rstrip("/")
-    query = urlencode({"token": token, "next": next_path or "/"})
+    query = urlencode({"token": token, "next": _safe_next(next_path)})
     return f"{base}/auth/callback?{query}"
+
+
+def _safe_next(next_path: str) -> str:
+    path = (next_path or "/research").strip() or "/research"
+    if not path.startswith("/") or path.startswith("//"):
+        return "/research"
+    prefix = path.split("?", 1)[0]
+    if prefix in {"/login", "/register", "/auth/callback"} or prefix.startswith("/auth/"):
+        return "/research"
+    return path
 
 
 def _issue_user(db: Session, email: str, full_name: str, provider: str, subject: str) -> tuple[User, str]:

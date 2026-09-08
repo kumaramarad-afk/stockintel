@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { ResearchAnalyzer } from "@/components/research/ResearchAnalyzer";
 
 export default function ResearchPage() {
-  redirect("/");
+  return <ResearchAnalyzer />;
 }
