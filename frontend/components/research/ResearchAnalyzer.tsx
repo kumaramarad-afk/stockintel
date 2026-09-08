@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
+import { ResearchHero } from "@/components/research/ResearchHero";
 import { PaywallLock, UpgradeButton } from "@/components/research/PaywallLock";
 import { useAuth } from "@/components/layout/AuthProvider";
 import { ChevronCard, Metric, ScoreBar, SectionIcon, Spinner, Stars, Unavailable, YesNo, daysAgoLabel } from "@/components/research/ui";
@@ -47,7 +48,6 @@ const SECTIONS = [
   "sector",
 ] as const;
 
-const EXAMPLES = ["AAPL", "NVDA", "MSFT"] as const;
 type SectionName = (typeof SECTIONS)[number];
 
 const empty = <T,>(): SectionState<T> => ({ loading: false, error: null, data: null, available: false });
@@ -229,53 +229,16 @@ export function ResearchAnalyzer() {
 
   return (
     <section className="space-y-8">
-      <div className={`hero-glow -mx-6 rounded-3xl px-6 py-14 text-center sm:py-20 ${showReport ? "py-8 sm:py-10" : ""}`}>
-        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-gsr-accent">GetStockReport</p>
-        <h1 className={`mt-4 font-semibold tracking-tight ${showReport ? "text-3xl sm:text-4xl" : "text-4xl sm:text-6xl"}`}>
-          Institutional-grade stock research. Free.
-        </h1>
-        {!showReport && (
-          <p className="mx-auto mt-4 max-w-xl text-gsr-muted">
-            Enter a ticker for a full desk report: price, fundamentals, ownership, and briefing — in one view.
-          </p>
-        )}
-        <form onSubmit={onSubmit} className="mx-auto mt-8 flex max-w-xl flex-col gap-3 sm:flex-row">
-          <label className="sr-only" htmlFor="ticker">
-            Ticker symbol
-          </label>
-          <input
-            id="ticker"
-            value={ticker}
-            onChange={(event) => setTicker(event.target.value.toUpperCase())}
-            placeholder="Enter ticker"
-            autoComplete="off"
-            spellCheck={false}
-            className="w-full rounded-2xl border border-gsr-border bg-gsr-card px-5 py-4 text-center text-lg font-semibold tracking-[0.2em] outline-none transition focus:border-gsr-accent sm:text-left"
-          />
-          <button
-            type="submit"
-            disabled={ticker.trim().length === 0}
-            className="inline-flex items-center justify-center rounded-2xl bg-gsr-accent px-8 py-4 text-sm font-semibold text-gsr-bg transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Analyze
-          </button>
-        </form>
-        <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
-          {EXAMPLES.map((symbol) => (
-            <button
-              key={symbol}
-              type="button"
-              onClick={() => {
-                setTicker(symbol);
-                void load(symbol);
-              }}
-              className="rounded-full border border-gsr-border bg-gsr-card px-4 py-1.5 text-sm font-medium text-gsr-muted transition hover:border-gsr-accent hover:text-gsr-accent"
-            >
-              {symbol}
-            </button>
-          ))}
-        </div>
-      </div>
+      <ResearchHero
+        ticker={ticker}
+        setTicker={setTicker}
+        onSubmit={onSubmit}
+        showReport={showReport}
+        onSelect={(symbol) => {
+          setTicker(symbol);
+          void load(symbol);
+        }}
+      />
 
       {showReport && (
         <div className="space-y-6">

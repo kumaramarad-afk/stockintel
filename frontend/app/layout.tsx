@@ -19,7 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body className={`${inter.variable} ${inter.className}`}>
         <AuthProvider>
-          <div className="flex min-h-screen flex-col bg-gsr-bg">
+          <div className="flex min-h-screen flex-col bg-slate-950">
             <Header />
             <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8">{children}</main>
             <Footer />

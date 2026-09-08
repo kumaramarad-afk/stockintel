@@ -10,26 +10,35 @@ const config: Config = {
     extend: {
       colors: {
         gsr: {
-          bg: "#0a0a0f",
-          card: "#12121a",
-          accent: "#00d4aa",
-          muted: "#8b8b9e",
-          border: "#1e1e2e",
+          bg: "#020617",
+          card: "#0f172a",
+          accent: "#10b981",
+          muted: "#94a3b8",
+          border: "#1e293b",
         },
         ink: {
-          950: "#0a0a0f",
-          900: "#12121a",
-          800: "#12121a",
-          700: "#1a1a24",
-          600: "#1e1e2e",
+          950: "#020617",
+          900: "#0f172a",
+          800: "#0f172a",
+          700: "#1e293b",
+          600: "#334155",
         },
       },
       boxShadow: {
         panel: "0 24px 80px rgba(0, 0, 0, 0.45)",
-        glass: "0 8px 40px rgba(0, 212, 170, 0.08)",
+        glass: "0 8px 40px rgba(16, 185, 129, 0.08)",
       },
       fontFamily: {
         sans: ["var(--font-inter)", "Inter", "system-ui", "sans-serif"],
+      },
+      keyframes: {
+        marquee: {
+          "0%": { transform: "translateX(0)" },
+          "100%": { transform: "translateX(-50%)" },
+        },
+      },
+      animation: {
+        marquee: "marquee 38s linear infinite",
       },
     },
   },

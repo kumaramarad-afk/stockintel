@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import ensure_user_schema
-from app.routers import auth_oauth, checkout, health, newsletters, research, stocks, users, watchlists, webhooks
+from app.routers import auth_oauth, checkout, health, markets, newsletters, research, stocks, users, watchlists, webhooks
 
 ensure_user_schema()
 
@@ -25,6 +25,7 @@ api_prefix = "/api/v1"
 app.include_router(health.router, prefix=api_prefix)
 app.include_router(stocks.router, prefix=api_prefix)
 app.include_router(research.router, prefix=api_prefix)
+app.include_router(markets.router, prefix=api_prefix)
 app.include_router(newsletters.router, prefix=api_prefix)
 app.include_router(watchlists.router, prefix=api_prefix)
 app.include_router(users.router, prefix=api_prefix)

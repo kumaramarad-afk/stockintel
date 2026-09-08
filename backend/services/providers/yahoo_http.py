@@ -76,6 +76,32 @@ def fetch_chart(symbol: str) -> tuple[pd.DataFrame, dict[str, Any]]:
     return frame, info
 
 
+def spark_quote(symbol: str) -> dict[str, Any]:
+    payload = _get_json(
+        f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}",
+        {"range": "1d", "interval": "5m"},
+    )
+    if not payload:
+        payload = _get_json(
+            f"https://query2.finance.yahoo.com/v8/finance/chart/{symbol}",
+            {"range": "1d", "interval": "5m"},
+        )
+    result = ((payload or {}).get("chart") or {}).get("result") or []
+    meta = (result[0].get("meta") if result else {}) or {}
+    price = to_float(meta.get("regularMarketPrice") or meta.get("currentPrice"))
+    previous = to_float(meta.get("chartPreviousClose") or meta.get("previousClose") or meta.get("regularMarketPreviousClose"))
+    change_percent = None
+    if price is not None and previous not in (None, 0):
+        change_percent = ((price - previous) / previous) * 100
+    return {
+        "symbol": symbol,
+        "name": meta.get("shortName") or meta.get("longName") or symbol,
+        "price": price,
+        "previous_close": previous,
+        "change_percent": change_percent,
+    }
+
+
 def fetch_quote_summary(symbol: str) -> dict[str, Any]:
     modules = ",".join(
         [

@@ -4,20 +4,20 @@
 
 :root {
   color-scheme: dark;
-  --gsr-bg: #0a0a0f;
-  --gsr-card: #12121a;
-  --gsr-accent: #00d4aa;
-  --gsr-muted: #8b8b9e;
-  --gsr-border: #1e1e2e;
+  --gsr-bg: #020617;
+  --gsr-card: #0f172a;
+  --gsr-accent: #10b981;
+  --gsr-muted: #94a3b8;
+  --gsr-border: #1e293b;
 }
 
 html,
 body {
-  background: #0a0a0f;
+  background: #020617;
 }
 
 body {
-  @apply min-h-screen bg-gsr-bg text-white antialiased;
+  @apply min-h-screen bg-slate-950 text-slate-100 antialiased;
 }
 
 a {
@@ -33,8 +33,8 @@ a {
 }
 
 .glass-card {
-  background: rgba(18, 18, 26, 0.82);
-  border: 1px solid #1e1e2e;
+  background: rgba(15, 23, 42, 0.82);
+  border: 1px solid rgba(30, 41, 59, 0.8);
   backdrop-filter: blur(18px);
 }
 
@@ -45,7 +45,7 @@ a {
 
 .hero-glow {
   background:
-    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0, 212, 170, 0.18), transparent 55%),
-    radial-gradient(ellipse 40% 30% at 80% 10%, rgba(0, 212, 170, 0.06), transparent 50%),
-    #0a0a0f;
+    radial-gradient(ellipse 70% 55% at 50% -8%, rgba(16, 185, 129, 0.14), transparent 58%),
+    radial-gradient(ellipse 36% 28% at 82% 8%, rgba(59, 130, 246, 0.08), transparent 52%),
+    transparent;
 }
