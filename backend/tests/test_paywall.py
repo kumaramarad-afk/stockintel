@@ -85,23 +85,24 @@ def test_guest_report_redacts_targets_on_backend() -> None:
     assert body["data"]["top_analysts"][0]["current_target"] == PLACEHOLDER
 
 
-def test_free_user_gets_basic_preview_and_redacted_pro_fields() -> None:
+def test_free_user_gets_full_report() -> None:
     token, _ = _register()
     headers = {"Authorization": f"Bearer {token}"}
     with patch("app.routers.research.generate_section", return_value=deepcopy(AI)):
         response = client.get("/api/v1/research/report/AAPL/ai", headers=headers)
     body = response.json()
-    assert body["access"]["entitlement"] == "basic"
+    assert body["access"]["entitlement"] == "full"
+    assert body["access"]["pro"] is False
     assert body["access"]["reports_used"] == 1
     assert body["access"]["reports_generated"] == 1
     assert body["access"]["reports_remaining"] == 4
-    preview = body["data"]["what_the_data_shows"]
-    assert "Coverage remains constructive" in preview
-    assert "Valuation still depends" not in preview
-    assert body["data"]["key_risks"] == [PLACEHOLDER, PLACEHOLDER]
+    briefing = body["data"]["what_the_data_shows"]
+    assert "Coverage remains constructive" in briefing
+    assert "Valuation still depends" in briefing
+    assert body["data"]["key_risks"] == ["China demand slows", "Regulatory pressure on the App Store"]
 
 
-def test_free_quota_locks_sixth_unique_ticker() -> None:
+def test_free_quota_sixth_ticker_matches_guest() -> None:
     token, user = _register()
     headers = {"Authorization": f"Bearer {token}"}
     assert user["reports_generated"] == 0
@@ -114,9 +115,13 @@ def test_free_quota_locks_sixth_unique_ticker() -> None:
         with patch("app.routers.research.generate_section", return_value=payload):
             response = client.get(f"/api/v1/research/report/{symbol}/analysts", headers=headers)
         statuses.append((response.status_code, response.json()))
-    assert [item[0] for item in statuses[:5]] == [200] * 5
-    assert statuses[5][0] == 403
-    assert statuses[5][1]["detail"] == "Free report limit reached (5/5). Please upgrade to continue."
+    assert [item[0] for item in statuses] == [200] * 6
+    assert [item[1]["access"]["entitlement"] for item in statuses[:5]] == ["full"] * 5
+    sixth = statuses[5][1]
+    assert sixth["access"]["entitlement"] == "public"
+    assert sixth["access"]["tier"] == "free"
+    assert sixth["data"]["average_target"] == PLACEHOLDER
+    assert sixth["data"]["recent_actions"][0]["direction"] is None
     me = client.get("/api/v1/users/me", headers=headers).json()
     assert me["reports_generated"] == 5
     assert me["reports_used"] == 5
@@ -124,7 +129,8 @@ def test_free_quota_locks_sixth_unique_ticker() -> None:
     with patch("app.routers.research.generate_section", return_value=deepcopy(ANALYSTS)):
         again = client.get("/api/v1/research/report/AAPL/analysts", headers=headers)
     assert again.status_code == 200
-    assert again.json()["access"]["entitlement"] == "basic"
+    assert again.json()["access"]["entitlement"] == "full"
+    assert again.json()["data"]["average_target"] == 250.0
 
 
 def test_pro_user_sees_unredacted_targets() -> None:

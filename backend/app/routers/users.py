@@ -15,7 +15,7 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 def user_to_read(user: User, db: Session) -> UserRead:
     payload = UserRead.model_validate(user)
-    for key, value in quota_fields(user).items():
+    for key, value in quota_fields(user, db).items():
         setattr(payload, key, value)
     return payload
 

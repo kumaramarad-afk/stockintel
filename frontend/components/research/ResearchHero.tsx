@@ -18,8 +18,7 @@ type ResearchHeroProps = {
   onSelect: (symbol: string) => void;
   showReport: boolean;
   quotaLabel?: string | null;
-  quotaBlocked?: boolean;
-  quotaMessage?: string | null;
+  quotaExhausted?: boolean;
   onUpgrade?: () => void;
 };
 
@@ -30,8 +29,7 @@ export function ResearchHero({
   onSelect,
   showReport,
   quotaLabel,
-  quotaBlocked = false,
-  quotaMessage,
+  quotaExhausted = false,
   onUpgrade,
 }: ResearchHeroProps) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -100,20 +98,18 @@ export function ResearchHero({
             </kbd>
             <button
               type="submit"
-              disabled={ticker.trim().length === 0 || quotaBlocked}
+              disabled={ticker.trim().length === 0}
               className="rounded-xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/20 transition-all hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50 sm:px-6"
             >
               Analyze Stock
             </button>
           </div>
         </form>
-        {quotaLabel && !quotaBlocked && (
-          <p className="mt-3 text-sm font-medium text-slate-400">{quotaLabel}</p>
-        )}
-        {quotaBlocked && (
-          <div className="mx-auto mt-4 max-w-xl space-y-3">
+        {quotaLabel && <p className="mt-3 text-sm font-medium text-slate-400">{quotaLabel}</p>}
+        {quotaExhausted && (
+          <div className="mx-auto mt-3 max-w-xl space-y-3">
             <p className="text-sm font-medium text-amber-200">
-              {quotaMessage || "Free report limit reached (5/5). Please upgrade to continue."}
+              Free monthly quota used. Additional reports match the guest preview until next month or Pro.
             </p>
             {onUpgrade && (
               <button
@@ -135,12 +131,8 @@ export function ResearchHero({
               <button
                 key={symbol}
                 type="button"
-                onClick={() => {
-                  if (quotaBlocked) return;
-                  onSelect(symbol);
-                }}
-                disabled={quotaBlocked}
-                className="inline-flex items-center gap-2 rounded-full border border-slate-700/60 bg-slate-900/60 px-4 py-2 text-sm text-slate-200 shadow-inner backdrop-blur-md transition hover:border-emerald-500/40 hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => onSelect(symbol)}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-700/60 bg-slate-900/60 px-4 py-2 text-sm text-slate-200 shadow-inner backdrop-blur-md transition hover:border-emerald-500/40 hover:bg-slate-900"
               >
                 <span className="font-semibold tracking-wide">{symbol}</span>
                 <span className="font-mono text-xs text-slate-400">

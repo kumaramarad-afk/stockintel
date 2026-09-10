@@ -65,7 +65,7 @@ function AccountInner() {
             <p className="mt-1 text-lg font-semibold capitalize text-gsr-accent">{user.plan}</p>
           </div>
           <div>
-            <p className="text-xs uppercase tracking-[0.16em] text-gsr-muted">Free reports remaining</p>
+            <p className="text-xs uppercase tracking-[0.16em] text-gsr-muted">Free reports remaining this month</p>
             <p className="mt-1 text-lg font-semibold">
               {user.plan === "pro"
                 ? "Unlimited"

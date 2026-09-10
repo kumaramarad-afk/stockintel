@@ -14,7 +14,7 @@ from app.schemas.research import (
     ResearchSectionResponse,
 )
 from services.alerts import notify_from_report
-from services.paywall import apply_paywall, assert_free_quota, resolve_access
+from services.paywall import apply_paywall, resolve_access
 from services.stock_service import (
     SECTION_HANDLERS,
     MissingApiKeyError,
@@ -56,7 +56,6 @@ def generate_research(
     user: User | None = Depends(optional_user),
 ) -> ResearchGenerateResponse:
     symbol = _normalize_ticker(payload.ticker)
-    assert_free_quota(db, user, symbol)
     try:
         result = generate_stock_research(symbol)
     except TickerNotFoundError as exc:
@@ -83,7 +82,6 @@ def research_report_section(
     name = section.strip().lower()
     if name not in SECTION_HANDLERS:
         raise HTTPException(status_code=404, detail="Unknown research section")
-    assert_free_quota(db, user, symbol)
     try:
         result = dict(generate_section(symbol, name))
     except TickerNotFoundError as exc:
