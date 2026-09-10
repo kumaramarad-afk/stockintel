@@ -24,6 +24,11 @@ frontend/.turbo/
 !.env.example
 API Key.txt
 AWS Login.txt
+client_secret_*.json
+*.apps.googleusercontent.com.json
+
+# Private specs and internal docs — never commit
+docs/private/
 
 # Databases and logs
 *.log

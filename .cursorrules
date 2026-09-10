@@ -1,0 +1,19 @@
+# GetStockReport.com - Cursor AI Rules
+
+## Core Project Stack
+- Frontend: Next.js (App Router, Standalone Output), Tailwind CSS, React
+- Backend: FastAPI (Python 3.12, Uvicorn, Virtualenv at `backend/venv`)
+- Database: PostgreSQL (`stockintel`)
+- Infra: AWS EC2 (t3.small, Ubuntu 24.04), Nginx (Reverse Proxy), PM2
+
+## Non-Negotiable Rules & Constraints
+1. Next.js Build Assets: Every production build MUST copy static assets to the standalone directory (`.next/static` to `.next/standalone/.next/static` and `public` to `.next/standalone/public`).
+2. API URL Configuration: `NEXT_PUBLIC_API_URL` and `API_PUBLIC_URL` MUST NOT have a trailing `/api` suffix. (e.g., use `https://getstockreport.com`, NOT `https://getstockreport.com/api`).
+3. Access Control & Redaction:
+   - Free Tier: Max 5 unique reports/month per registered user.
+   - Guest/Free Tier Redactions: Sensitive price target and insider numbers must be redacted ON THE BACKEND with `$$$.$$`. Never rely on CSS hiding.
+4. Legal Compliance: Never write explicit "buy", "sell", or "hold" recommendations. Use neutral score bands:
+   - 75-100: Bullish Consensus
+   - 50-74: Mixed Signals
+   - 0-49: Bearish Consensus
+5. Python Commands: Always run backend python/pip commands inside the virtual environment (`source backend/venv/bin/activate`).

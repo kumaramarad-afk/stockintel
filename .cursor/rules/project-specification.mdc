@@ -1,0 +1,19 @@
+---
+description: Use the private GetStockReport spec as source of truth; never share it publicly
+alwaysApply: true
+---
+
+# Private Project Specification
+
+When product, architecture, scoring, auth, payments, deployment, or ops details are unclear, read:
+
+`docs/private/GetStockReport-Specification.md`
+
+Treat that file as confidential internal documentation.
+
+## Never share publicly
+
+- Do not commit, push, gist, PR, or otherwise publish the spec or files under `docs/private/`
+- Do not paste the spec, infrastructure identifiers, credentials, env values, or other secrets into GitHub, public chats, issues, or generated public docs
+- Do not reproduce the spec verbatim in user-facing README, marketing copy, or comments that would be committed
+- Prefer high-level guidance in replies; do not dump IPs, instance IDs, keys, or env contents unless Jayanth explicitly asks for that local value
