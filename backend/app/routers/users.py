@@ -8,15 +8,15 @@ from app.deps import current_user, db_session
 from app.models import User
 from app.schemas.user import SubscribePlanRequest, TokenResponse, UserCreate, UserLogin, UserRead
 from services.auth import create_token, hash_password, verify_password
-from services.paywall import MONTHLY_LIMIT, count_views
+from services.paywall import quota_fields
 
 router = APIRouter(prefix="/users", tags=["users"])
 
 
 def user_to_read(user: User, db: Session) -> UserRead:
     payload = UserRead.model_validate(user)
-    payload.reports_used = count_views(db, user.id)
-    payload.reports_limit = MONTHLY_LIMIT
+    for key, value in quota_fields(user).items():
+        setattr(payload, key, value)
     return payload
 
 

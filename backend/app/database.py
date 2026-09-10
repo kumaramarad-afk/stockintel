@@ -42,6 +42,7 @@ def ensure_user_schema() -> None:
     dialect = engine.dialect.name
     extra_columns = {
         "plan": "VARCHAR(32) DEFAULT 'free'",
+        "reports_generated": "INTEGER DEFAULT 0",
         "subscribed_at": "TIMESTAMPTZ" if dialect == "postgresql" else "DATETIME",
         "stripe_customer_id": "VARCHAR(255)",
         "stripe_subscription_id": "VARCHAR(255)",
@@ -52,6 +53,17 @@ def ensure_user_schema() -> None:
         with engine.begin() as connection:
             for name, definition in extra_columns.items():
                 connection.execute(text(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {name} {definition}"))
+            connection.execute(
+                text(
+                    """
+                    UPDATE users
+                    SET reports_generated = (
+                        SELECT COUNT(*) FROM report_views WHERE report_views.user_id = users.id
+                    )
+                    WHERE COALESCE(reports_generated, 0) = 0
+                    """
+                )
+            )
         return
     if dialect != "sqlite":
         return
@@ -67,3 +79,18 @@ def ensure_user_schema() -> None:
                 connection.execute(text(f'ALTER TABLE users ADD COLUMN "{name}" {sqlite_def}'))
         except Exception:
             continue
+    with engine.begin() as connection:
+        try:
+            connection.execute(
+                text(
+                    """
+                    UPDATE users
+                    SET reports_generated = (
+                        SELECT COUNT(*) FROM report_views WHERE report_views.user_id = users.id
+                    )
+                    WHERE COALESCE(reports_generated, 0) = 0
+                    """
+                )
+            )
+        except Exception:
+            pass

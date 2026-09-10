@@ -16,6 +16,8 @@ export type Account = {
   is_active: boolean;
   reports_used?: number;
   reports_limit?: number;
+  reports_generated?: number;
+  reports_remaining?: number;
   oauth_provider?: string | null;
 };
 

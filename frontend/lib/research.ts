@@ -10,6 +10,8 @@ export type AccessInfo = {
   entitlement: "public" | "basic" | "full" | "locked" | string;
   reports_used: number;
   reports_limit: number;
+  reports_generated?: number;
+  reports_remaining?: number;
   pro: boolean;
   locked_fields: string[];
 };

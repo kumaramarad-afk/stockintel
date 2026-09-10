@@ -28,8 +28,10 @@ class UserRead(BaseModel):
     plan: str = "free"
     subscribed_at: datetime | None
     created_at: datetime
+    reports_generated: int = 0
     reports_used: int = 0
     reports_limit: int = 5
+    reports_remaining: int = 5
     oauth_provider: str | None = None
 
 

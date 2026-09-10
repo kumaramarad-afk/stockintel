@@ -14,7 +14,7 @@ from app.schemas.research import (
     ResearchSectionResponse,
 )
 from services.alerts import notify_from_report
-from services.paywall import apply_paywall, resolve_access
+from services.paywall import apply_paywall, assert_free_quota, resolve_access
 from services.stock_service import (
     SECTION_HANDLERS,
     MissingApiKeyError,
@@ -50,9 +50,15 @@ def list_research(db: Session = Depends(db_session)) -> list[ResearchNoteRead]:
 
 
 @router.post("/generate", response_model=ResearchGenerateResponse)
-def generate_research(payload: ResearchGenerateRequest) -> ResearchGenerateResponse:
+def generate_research(
+    payload: ResearchGenerateRequest,
+    db: Session = Depends(db_session),
+    user: User | None = Depends(optional_user),
+) -> ResearchGenerateResponse:
+    symbol = _normalize_ticker(payload.ticker)
+    assert_free_quota(db, user, symbol)
     try:
-        result = generate_stock_research(payload.ticker)
+        result = generate_stock_research(symbol)
     except TickerNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except MissingApiKeyError as exc:
@@ -61,6 +67,8 @@ def generate_research(payload: ResearchGenerateRequest) -> ResearchGenerateRespo
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail="Failed to generate stock research.") from exc
+    if user is not None:
+        resolve_access(user, symbol, db, consume=True)
     return ResearchGenerateResponse.model_validate(result)
 
 
@@ -75,6 +83,7 @@ def research_report_section(
     name = section.strip().lower()
     if name not in SECTION_HANDLERS:
         raise HTTPException(status_code=404, detail="Unknown research section")
+    assert_free_quota(db, user, symbol)
     try:
         result = dict(generate_section(symbol, name))
     except TickerNotFoundError as exc:

@@ -134,10 +134,11 @@ async function fetchSection<T>(ticker: string, section: SectionName, token: stri
 }
 
 export function ResearchAnalyzer() {
-  const { token, user, loading: authLoading, openAuthModal } = useAuth();
+  const { token, user, loading: authLoading, openAuthModal, refreshProfile, startCheckout } = useAuth();
   const [ticker, setTicker] = useState("");
   const [active, setActive] = useState<string | null>(null);
   const [access, setAccess] = useState<AccessInfo | null>(null);
+  const [quotaError, setQuotaError] = useState<string | null>(null);
   const [header, setHeader] = useState(empty<HeaderData>());
   const [ai, setAi] = useState(empty<AiData>());
   const [technicals, setTechnicals] = useState(empty<TechnicalsData>());
@@ -173,6 +174,7 @@ export function ResearchAnalyzer() {
   };
 
   const load = useCallback(async (symbol: string) => {
+    setQuotaError(null);
     setActive(symbol);
     sessionStorage.setItem("gsr_resume_ticker", symbol);
     for (const section of SECTIONS) {
@@ -190,16 +192,21 @@ export function ResearchAnalyzer() {
             available: result.available,
           });
         } catch (error) {
+          const message = error instanceof Error ? error.message : "Data unavailable";
+          if (message.includes("Free report limit reached")) {
+            setQuotaError(message);
+          }
           setters[section]({
             loading: false,
-            error: error instanceof Error ? error.message : "Data unavailable",
+            error: message,
             data: null,
             available: false,
           });
         }
       }),
     );
-  }, [token]);
+    await refreshProfile();
+  }, [token, refreshProfile]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -217,7 +224,7 @@ export function ResearchAnalyzer() {
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const symbol = ticker.trim().toUpperCase();
-    if (!symbol) return;
+    if (!symbol || quotaBlocked) return;
     await load(symbol);
   }
 
@@ -225,7 +232,13 @@ export function ResearchAnalyzer() {
   const headerData = header.data;
   const showDividends = dividends.loading || dividends.available || Boolean(dividends.data);
   const fieldLocked = (name: string) => Boolean(access?.locked_fields?.includes(name));
-  const remaining = Math.max(0, (access?.reports_limit ?? 5) - (access?.reports_used ?? 0));
+  const remaining = Math.max(
+    0,
+    user?.reports_remaining ?? (access?.reports_remaining ?? (access?.reports_limit ?? 5) - (access?.reports_used ?? 0)),
+  );
+  const quotaBlocked = Boolean(user && user.plan !== "pro" && remaining <= 0);
+  const quotaLabel =
+    user && user.plan !== "pro" ? `${remaining} / ${user.reports_limit ?? 5} free reports remaining` : null;
 
   return (
     <section className="space-y-8">
@@ -234,7 +247,14 @@ export function ResearchAnalyzer() {
         setTicker={setTicker}
         onSubmit={onSubmit}
         showReport={showReport}
+        quotaLabel={quotaLabel}
+        quotaBlocked={quotaBlocked}
+        quotaMessage={quotaError || (quotaBlocked ? "Free report limit reached (5/5). Please upgrade to continue." : null)}
+        onUpgrade={() => {
+          void startCheckout();
+        }}
         onSelect={(symbol) => {
+          if (quotaBlocked) return;
           setTicker(symbol);
           void load(symbol);
         }}
@@ -247,10 +267,12 @@ export function ResearchAnalyzer() {
               {access.entitlement === "full" && <p className="text-gsr-accent">Pro desk unlocked — full metrics and alerts are live.</p>}
               {access.entitlement === "basic" && (
                 <p className="text-gsr-muted">
-                  Free desk: {remaining} of {access.reports_limit} reports left this month. Exact targets and risk detail stay on Pro.
+                  {remaining} / {access.reports_limit} free reports remaining. Exact targets and risk detail stay on Pro.
                 </p>
               )}
-              {access.entitlement === "locked" && <p className="text-amber-200">You have used {access.reports_limit} free reports this month.</p>}
+              {access.entitlement === "locked" && (
+                <p className="text-amber-200">Free report limit reached (5/5). Please upgrade to continue.</p>
+              )}
               {access.entitlement === "public" && <p className="text-gsr-muted">Public preview. Sign in for 5 free reports every month.</p>}
               {access.entitlement !== "full" && (
                 <div className="flex flex-wrap gap-2">

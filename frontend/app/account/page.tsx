@@ -65,9 +65,11 @@ function AccountInner() {
             <p className="mt-1 text-lg font-semibold capitalize text-gsr-accent">{user.plan}</p>
           </div>
           <div>
-            <p className="text-xs uppercase tracking-[0.16em] text-gsr-muted">Reports this month</p>
+            <p className="text-xs uppercase tracking-[0.16em] text-gsr-muted">Free reports remaining</p>
             <p className="mt-1 text-lg font-semibold">
-              {user.plan === "pro" ? "Unlimited" : `${user.reports_used ?? 0} / ${user.reports_limit ?? 5}`}
+              {user.plan === "pro"
+                ? "Unlimited"
+                : `${user.reports_remaining ?? Math.max(0, (user.reports_limit ?? 5) - (user.reports_used ?? 0))} / ${user.reports_limit ?? 5}`}
             </p>
           </div>
           <div>

@@ -21,6 +21,8 @@ def test_register_login_and_subscribe() -> None:
     assert me.json()["email"] == email
     assert me.json()["plan"] == "free"
     assert me.json()["reports_limit"] == 5
+    assert me.json()["reports_generated"] == 0
+    assert me.json()["reports_remaining"] == 5
     upgraded = client.post("/api/v1/users/subscribe", json={"plan": "pro"}, headers=headers)
     assert upgraded.status_code == 200
     assert upgraded.json()["plan"] == "pro"

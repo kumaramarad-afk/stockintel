@@ -7,9 +7,9 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.deps import current_user, db_session
+from app.routers.users import user_to_read
 from app.schemas.user import TokenResponse, UserRead
 from services import oauth
-from services.paywall import MONTHLY_LIMIT, count_views
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -22,10 +22,7 @@ class OAuthTokenRequest(BaseModel):
 
 
 def _token_response(user, token, db) -> TokenResponse:
-    read = UserRead.model_validate(user)
-    read.reports_used = count_views(db, user.id)
-    read.reports_limit = MONTHLY_LIMIT
-    return TokenResponse(access_token=token, user=read)
+    return TokenResponse(access_token=token, user=user_to_read(user, db))
 
 
 @router.get("/google/start")
@@ -103,10 +100,7 @@ def oauth_id_token(payload: OAuthTokenRequest, db: Session = Depends(db_session)
 
 @router.get("/me", response_model=UserRead)
 def read_auth_me(user=Depends(current_user), db: Session = Depends(db_session)) -> UserRead:
-    read = UserRead.model_validate(user)
-    read.reports_used = count_views(db, user.id)
-    read.reports_limit = MONTHLY_LIMIT
-    return read
+    return user_to_read(user, db)
 
 
 @router.get("/providers")

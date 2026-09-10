@@ -17,9 +17,23 @@ type ResearchHeroProps = {
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onSelect: (symbol: string) => void;
   showReport: boolean;
+  quotaLabel?: string | null;
+  quotaBlocked?: boolean;
+  quotaMessage?: string | null;
+  onUpgrade?: () => void;
 };
 
-export function ResearchHero({ ticker, setTicker, onSubmit, onSelect, showReport }: ResearchHeroProps) {
+export function ResearchHero({
+  ticker,
+  setTicker,
+  onSubmit,
+  onSelect,
+  showReport,
+  quotaLabel,
+  quotaBlocked = false,
+  quotaMessage,
+  onUpgrade,
+}: ResearchHeroProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [quotes, setQuotes] = useState<MarketQuote[]>([]);
   const [isMac, setIsMac] = useState(false);
@@ -86,13 +100,32 @@ export function ResearchHero({ ticker, setTicker, onSubmit, onSelect, showReport
             </kbd>
             <button
               type="submit"
-              disabled={ticker.trim().length === 0}
+              disabled={ticker.trim().length === 0 || quotaBlocked}
               className="rounded-xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/20 transition-all hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50 sm:px-6"
             >
               Analyze Stock
             </button>
           </div>
         </form>
+        {quotaLabel && !quotaBlocked && (
+          <p className="mt-3 text-sm font-medium text-slate-400">{quotaLabel}</p>
+        )}
+        {quotaBlocked && (
+          <div className="mx-auto mt-4 max-w-xl space-y-3">
+            <p className="text-sm font-medium text-amber-200">
+              {quotaMessage || "Free report limit reached (5/5). Please upgrade to continue."}
+            </p>
+            {onUpgrade && (
+              <button
+                type="button"
+                onClick={onUpgrade}
+                className="rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/20 transition-all hover:bg-emerald-400"
+              >
+                Upgrade to Pro
+              </button>
+            )}
+          </div>
+        )}
         <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
           {POPULAR_SYMBOLS.map((symbol) => {
             const quote = quoteFor(symbol);
@@ -102,8 +135,12 @@ export function ResearchHero({ ticker, setTicker, onSubmit, onSelect, showReport
               <button
                 key={symbol}
                 type="button"
-                onClick={() => onSelect(symbol)}
-                className="inline-flex items-center gap-2 rounded-full border border-slate-700/60 bg-slate-900/60 px-4 py-2 text-sm text-slate-200 shadow-inner backdrop-blur-md transition hover:border-emerald-500/40 hover:bg-slate-900"
+                onClick={() => {
+                  if (quotaBlocked) return;
+                  onSelect(symbol);
+                }}
+                disabled={quotaBlocked}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-700/60 bg-slate-900/60 px-4 py-2 text-sm text-slate-200 shadow-inner backdrop-blur-md transition hover:border-emerald-500/40 hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <span className="font-semibold tracking-wide">{symbol}</span>
                 <span className="font-mono text-xs text-slate-400">

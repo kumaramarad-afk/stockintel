@@ -93,6 +93,8 @@ def test_free_user_gets_basic_preview_and_redacted_pro_fields() -> None:
     body = response.json()
     assert body["access"]["entitlement"] == "basic"
     assert body["access"]["reports_used"] == 1
+    assert body["access"]["reports_generated"] == 1
+    assert body["access"]["reports_remaining"] == 4
     preview = body["data"]["what_the_data_shows"]
     assert "Coverage remains constructive" in preview
     assert "Valuation still depends" not in preview
@@ -100,20 +102,28 @@ def test_free_user_gets_basic_preview_and_redacted_pro_fields() -> None:
 
 
 def test_free_quota_locks_sixth_unique_ticker() -> None:
-    token, _ = _register()
+    token, user = _register()
     headers = {"Authorization": f"Bearer {token}"}
+    assert user["reports_generated"] == 0
+    assert user["reports_remaining"] == 5
     tickers = ["AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META"]
-    entitlements = []
+    statuses = []
     for symbol in tickers:
         payload = deepcopy(ANALYSTS)
         payload["ticker"] = symbol
         with patch("app.routers.research.generate_section", return_value=payload):
             response = client.get(f"/api/v1/research/report/{symbol}/analysts", headers=headers)
-        entitlements.append(response.json()["access"]["entitlement"])
-    assert entitlements[:5] == ["basic"] * 5
-    assert entitlements[5] == "locked"
+        statuses.append((response.status_code, response.json()))
+    assert [item[0] for item in statuses[:5]] == [200] * 5
+    assert statuses[5][0] == 403
+    assert statuses[5][1]["detail"] == "Free report limit reached (5/5). Please upgrade to continue."
+    me = client.get("/api/v1/users/me", headers=headers).json()
+    assert me["reports_generated"] == 5
+    assert me["reports_used"] == 5
+    assert me["reports_remaining"] == 0
     with patch("app.routers.research.generate_section", return_value=deepcopy(ANALYSTS)):
         again = client.get("/api/v1/research/report/AAPL/analysts", headers=headers)
+    assert again.status_code == 200
     assert again.json()["access"]["entitlement"] == "basic"
 
 

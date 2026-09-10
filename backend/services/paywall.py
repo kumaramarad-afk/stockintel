@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
+from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -14,6 +15,7 @@ from app.models import ReportView, User
 
 PLACEHOLDER = "$$$.$$"
 MONTHLY_LIMIT = settings.monthly_report_limit
+QUOTA_EXCEEDED = "Free report limit reached (5/5). Please upgrade to continue."
 
 PUBLIC_LOCKED = ["targets", "direction", "summary", "risks", "catalysts", "analyst_case", "insider_amounts"]
 BASIC_LOCKED = ["targets", "direction", "risks", "catalysts", "analyst_case", "insider_amounts"]
@@ -44,20 +46,57 @@ def has_viewed(db: Session, user_id: UUID, ticker: str, period: str | None = Non
     return row is not None
 
 
+def reports_generated_of(user: User) -> int:
+    return int(getattr(user, "reports_generated", 0) or 0)
+
+
+def quota_fields(user: User | None) -> dict[str, int]:
+    if user is None:
+        return {
+            "reports_generated": 0,
+            "reports_used": 0,
+            "reports_limit": MONTHLY_LIMIT,
+            "reports_remaining": MONTHLY_LIMIT,
+        }
+    generated = reports_generated_of(user)
+    remaining = MONTHLY_LIMIT if user.plan == "pro" else max(0, MONTHLY_LIMIT - generated)
+    return {
+        "reports_generated": generated,
+        "reports_used": generated,
+        "reports_limit": MONTHLY_LIMIT,
+        "reports_remaining": remaining,
+    }
+
+
+def assert_free_quota(db: Session, user: User | None, ticker: str) -> None:
+    if user is None or user.plan == "pro":
+        return
+    if has_viewed(db, user.id, ticker):
+        return
+    if reports_generated_of(user) >= MONTHLY_LIMIT:
+        raise HTTPException(status_code=403, detail=QUOTA_EXCEEDED)
+
+
 def record_view(db: Session, user: User, ticker: str) -> None:
     if user.plan == "pro":
         return
     month = current_period()
     symbol = ticker.upper()
-    if has_viewed(db, user.id, symbol, month):
+    locked = db.scalar(select(User).where(User.id == user.id).with_for_update())
+    if locked is None:
         return
-    if count_views(db, user.id, month) >= MONTHLY_LIMIT:
+    if has_viewed(db, locked.id, symbol, month):
         return
-    db.add(ReportView(user_id=user.id, ticker=symbol, period=month))
+    if reports_generated_of(locked) >= MONTHLY_LIMIT:
+        raise HTTPException(status_code=403, detail=QUOTA_EXCEEDED)
+    locked.reports_generated = reports_generated_of(locked) + 1
+    db.add(ReportView(user_id=locked.id, ticker=symbol, period=month))
     try:
         db.commit()
     except IntegrityError:
         db.rollback()
+    else:
+        db.refresh(user)
 
 
 def resolve_access(user: User | None, ticker: str, db: Session | None, consume: bool = False) -> dict[str, Any]:
@@ -65,40 +104,36 @@ def resolve_access(user: User | None, ticker: str, db: Session | None, consume: 
         return {
             "tier": "guest",
             "entitlement": "public",
-            "reports_used": 0,
-            "reports_limit": MONTHLY_LIMIT,
             "pro": False,
             "locked_fields": list(PUBLIC_LOCKED),
+            **quota_fields(user),
         }
     if user.plan == "pro":
         return {
             "tier": "pro",
             "entitlement": "full",
-            "reports_used": count_views(db, user.id) if db is not None else 0,
-            "reports_limit": MONTHLY_LIMIT,
             "pro": True,
             "locked_fields": [],
+            **quota_fields(user),
         }
     if consume and db is not None:
         record_view(db, user, ticker)
-    used = count_views(db, user.id) if db is not None else 0
     viewed = has_viewed(db, user.id, ticker) if db is not None else False
+    quota = quota_fields(user)
     if viewed:
         return {
             "tier": "free",
             "entitlement": "basic",
-            "reports_used": used,
-            "reports_limit": MONTHLY_LIMIT,
             "pro": False,
             "locked_fields": list(BASIC_LOCKED),
+            **quota,
         }
     return {
         "tier": "free",
         "entitlement": "locked",
-        "reports_used": used,
-        "reports_limit": MONTHLY_LIMIT,
         "pro": False,
         "locked_fields": list(PUBLIC_LOCKED),
+        **quota,
     }
 
 
