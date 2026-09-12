@@ -6,6 +6,7 @@ from datetime import date, datetime, timedelta, timezone
 from email.message import EmailMessage
 from typing import Any
 
+import httpx
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -180,15 +181,46 @@ def compile_email_html(
     return "".join(parts)
 
 
+def _from_identity() -> tuple[str, str]:
+    email = settings.newsletter_from_email or "newsletter@getstockreport.com"
+    name = settings.newsletter_from_name or "GetStockReport"
+    return name, email
+
+
+def _send_via_sendgrid(to_addr: str, subject: str, html: str) -> bool:
+    name, email = _from_identity()
+    payload = {
+        "personalizations": [{"to": [{"email": to_addr}]}],
+        "from": {"email": email, "name": name},
+        "subject": subject,
+        "content": [
+            {"type": "text/plain", "value": "Open GetStockReport for today's market briefing and deep-dive research."},
+            {"type": "text/html", "value": html},
+        ],
+    }
+    headers = {
+        "Authorization": f"Bearer {settings.sendgrid_api_key}",
+        "Content-Type": "application/json",
+    }
+    with httpx.Client(timeout=20.0) as client:
+        response = client.post("https://api.sendgrid.com/v3/mail/send", json=payload, headers=headers)
+    if response.status_code >= 400:
+        logger.warning("SendGrid rejected newsletter to %s (%s)", to_addr, response.status_code)
+        return False
+    return True
+
+
 def _send_html_email(to_addr: str, subject: str, html: str) -> bool:
     if not to_addr:
         return False
+    if settings.sendgrid_api_key:
+        return _send_via_sendgrid(to_addr, subject, html)
     if not settings.smtp_host:
-        logger.info("Newsletter skipped (SMTP unset): %s -> %s", to_addr, subject)
+        logger.info("Newsletter skipped (email unset): %s -> %s", to_addr, subject)
         return False
+    name, email = _from_identity()
     message = EmailMessage()
-    sender = settings.smtp_from or f"{settings.newsletter_from_name} <{settings.newsletter_from_email}>"
-    message["From"] = sender
+    message["From"] = f"{name} <{email}>"
     message["To"] = to_addr
     message["Subject"] = subject
     message.set_content("Open GetStockReport for today's market briefing and deep-dive research.")
