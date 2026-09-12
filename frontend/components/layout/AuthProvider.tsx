@@ -19,6 +19,9 @@ export type Account = {
   reports_generated?: number;
   reports_remaining?: number;
   oauth_provider?: string | null;
+  newsletter_subscription_status?: string;
+  newsletter_email_preference?: string;
+  newsletter_subscribed_at?: string | null;
 };
 
 type AuthContextValue = {
@@ -31,7 +34,7 @@ type AuthContextValue = {
   login: (email: string, password: string) => Promise<void>;
   register: (fullName: string, email: string, password: string) => Promise<void>;
   subscribe: (plan?: "pro" | "free") => Promise<void>;
-  startCheckout: () => Promise<void>;
+  startCheckout: (plan?: "pro" | "newsletter_pro") => Promise<void>;
   startBillingPortal: () => Promise<void>;
   startOAuth: (provider: "google" | "apple") => void;
   applyToken: (value: string) => Promise<void>;
@@ -162,12 +165,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser((await response.json()) as Account);
   }, [token]);
 
-  const startCheckout = useCallback(async () => {
+  const startCheckout = useCallback(async (plan: "pro" | "newsletter_pro" = "pro") => {
     if (!token) {
       setAuthModalOpen(true);
       return;
     }
-    const response = await fetch(apiUrl("/api/checkout"), {
+    const path = plan === "newsletter_pro" ? "/api/checkout?plan=newsletter_pro" : "/api/checkout";
+    const response = await fetch(apiUrl(path), {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
     });

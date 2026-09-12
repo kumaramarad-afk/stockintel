@@ -16,3 +16,4 @@ stripe==11.3.0
 PyJWT==2.10.1
 cryptography==44.0.0
 python-multipart==0.0.20
+apscheduler==3.10.4

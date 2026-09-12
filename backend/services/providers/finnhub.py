@@ -112,6 +112,29 @@ def company_news(ticker: str) -> list[dict[str, Any]]:
     return items
 
 
+def earnings_week(days: int = 7) -> list[dict[str, Any]]:
+    today = datetime.now(timezone.utc).date()
+    payload = _get(
+        "/calendar/earnings",
+        {"from": today.isoformat(), "to": (today + timedelta(days=days)).isoformat()},
+    )
+    rows = payload.get("earningsCalendar") if isinstance(payload, dict) else payload
+    if not isinstance(rows, list):
+        return []
+    items: list[dict[str, Any]] = []
+    for row in rows[:12]:
+        items.append(
+            {
+                "date": row.get("date"),
+                "ticker": row.get("symbol"),
+                "eps_estimate": to_float(row.get("epsEstimate")),
+                "eps_actual": to_float(row.get("epsActual")),
+                "hour": row.get("hour"),
+            }
+        )
+    return items
+
+
 def earnings_calendar(ticker: str) -> dict[str, Any] | None:
     today = datetime.now(timezone.utc).date()
     payload = _get(

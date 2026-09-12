@@ -50,6 +50,48 @@ export type NewsletterIssue = {
   body: string;
   published_at: string | null;
   created_at: string;
+  ticker?: string | null;
+};
+
+export type NewsletterStatus = {
+  tier: string;
+  status: string;
+  newsletter_enabled: boolean;
+  subscribed_at: string | null;
+  newsletter_emails_received: number;
+  email_preference: string;
+};
+
+export type NewsletterArchiveItem = {
+  date: string;
+  ticker: string;
+  reason: string;
+  sentiment: string;
+  issue_id: string | null;
+  research_path: string;
+};
+
+export type NewsletterToday = {
+  date: string | null;
+  ticker: string | null;
+  reason: string | null;
+  sentiment: string | null;
+  research_path: string | null;
+  issue_id: string | null;
+  full_access: boolean;
+  movers: Array<{
+    ticker?: string;
+    change_percent?: number;
+    headline?: string;
+  }>;
+  earnings: Array<{
+    date?: string;
+    ticker?: string;
+    eps_estimate?: number | null;
+    eps_actual?: number | null;
+  }>;
+  macro: Record<string, unknown>;
+  html: string | null;
 };
 
 export type WatchlistItem = {

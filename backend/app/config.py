@@ -26,13 +26,20 @@ class Settings(BaseSettings):
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""
     stripe_price_id: str = ""
+    stripe_newsletter_price_id: str = ""
     smtp_host: str = ""
     smtp_port: int = 587
     smtp_user: str = ""
     smtp_password: str = ""
     smtp_from: str = "GetStockReport <alerts@getstockreport.com>"
+    sendgrid_api_key: str = ""
+    newsletter_from_email: str = "newsletter@getstockreport.com"
+    newsletter_from_name: str = "GetStockReport"
+    internal_api_key: str = ""
+    newsletter_scheduler_enabled: bool = True
     monthly_report_limit: int = 5
     pro_price_cents: int = 700
+    newsletter_price_cents: int = 1500
 
     @property
     def cors_origin_list(self) -> list[str]:

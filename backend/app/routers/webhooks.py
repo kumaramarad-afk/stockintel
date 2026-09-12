@@ -17,25 +17,43 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["billing"])
 
 PRO_PLAN = "pro"
+NEWSLETTER_PLAN = "newsletter_pro"
 FREE_PLAN = "free"
+PAID_PLANS = frozenset({PRO_PLAN, NEWSLETTER_PLAN})
 
 
-def activate_pro(user: User, customer: str | None = None, subscription: str | None = None) -> None:
-    user.plan = PRO_PLAN
+def activate_plan(user: User, plan: str, customer: str | None = None, subscription: str | None = None) -> None:
+    selected = plan if plan in PAID_PLANS else PRO_PLAN
+    user.plan = selected
     user.subscribed_at = datetime.now(timezone.utc)
     if customer:
         user.stripe_customer_id = customer
     if subscription:
         user.stripe_subscription_id = subscription
+    if selected == NEWSLETTER_PLAN:
+        user.newsletter_subscription_status = "active"
+        if (user.newsletter_email_preference or "off") == "off":
+            user.newsletter_email_preference = "daily"
+        if user.newsletter_subscribed_at is None:
+            user.newsletter_subscribed_at = datetime.now(timezone.utc)
+        return
+    if (user.newsletter_subscription_status or "none") == "active":
+        user.newsletter_subscription_status = "cancelled"
+
+
+def activate_pro(user: User, customer: str | None = None, subscription: str | None = None) -> None:
+    activate_plan(user, PRO_PLAN, customer, subscription)
 
 
 def _set_plan(user: User, plan: str, customer: str | None = None, subscription: str | None = None) -> None:
-    if plan == PRO_PLAN:
-        activate_pro(user, customer, subscription)
+    if plan in PAID_PLANS:
+        activate_plan(user, plan, customer, subscription)
         return
     user.plan = FREE_PLAN
     user.subscribed_at = None
     user.stripe_subscription_id = None
+    if (user.newsletter_subscription_status or "none") == "active":
+        user.newsletter_subscription_status = "cancelled"
 
 
 def _user_from_session(db: Session, session: dict) -> User | None:
@@ -65,8 +83,9 @@ def apply_paid_checkout(db: Session, session: dict, user: User | None = None) ->
     account = user or _user_from_session(db, session)
     if account is None:
         return None
-    activate_pro(
+    activate_plan(
         account,
+        stripe_billing.checkout_plan(session),
         stripe_billing.stripe_id(session.get("customer")),
         stripe_billing.stripe_id(session.get("subscription")),
     )
@@ -126,7 +145,10 @@ async def stripe_webhook(request: Request, db: Session = Depends(db_session)) ->
             if status in {"canceled", "unpaid", "incomplete_expired", "paused"}:
                 _set_plan(user, FREE_PLAN)
             elif status in {"active", "trialing"}:
-                _set_plan(user, PRO_PLAN, customer_id, stripe_billing.stripe_id(obj.get("id")) or subscription_id)
+                paid_plan = str((obj.get("metadata") or {}).get("plan") or PRO_PLAN)
+                if paid_plan not in PAID_PLANS:
+                    paid_plan = PRO_PLAN
+                _set_plan(user, paid_plan, customer_id, stripe_billing.stripe_id(obj.get("id")) or subscription_id)
             db.add(user)
             db.commit()
     else:

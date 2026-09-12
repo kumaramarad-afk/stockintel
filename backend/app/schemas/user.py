@@ -33,6 +33,9 @@ class UserRead(BaseModel):
     reports_limit: int = 5
     reports_remaining: int = 5
     oauth_provider: str | None = None
+    newsletter_subscription_status: str = "none"
+    newsletter_email_preference: str = "daily"
+    newsletter_subscribed_at: datetime | None = None
 
 
 class TokenResponse(BaseModel):
@@ -42,4 +45,4 @@ class TokenResponse(BaseModel):
 
 
 class SubscribePlanRequest(BaseModel):
-    plan: Literal["pro", "free"] = "pro"
+    plan: Literal["pro", "free", "newsletter_pro"] = "pro"

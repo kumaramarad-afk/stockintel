@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -25,16 +25,22 @@ class VerifySessionRequest(BaseModel):
 
 @router.post("/api/checkout", response_model=CheckoutResponse)
 @router.post("/api/v1/checkout", response_model=CheckoutResponse)
-def create_checkout(user: User = Depends(current_user)) -> CheckoutResponse:
-    if user.plan == "pro":
+def create_checkout(
+    user: User = Depends(current_user),
+    plan: str = Query(default="pro"),
+) -> CheckoutResponse:
+    selected = stripe_billing.normalize_plan(plan)
+    if user.plan == "newsletter_pro":
+        raise HTTPException(status_code=400, detail="This account is already on Newsletter Pro")
+    if user.plan == "pro" and selected == "pro":
         raise HTTPException(status_code=400, detail="This account is already on Pro")
     success = (
         f"{settings.frontend_url.rstrip('/')}/account"
         "?upgraded=1&session_id={CHECKOUT_SESSION_ID}"
     )
-    cancel = f"{settings.frontend_url.rstrip('/')}/subscribe"
+    cancel = f"{settings.frontend_url.rstrip('/')}/{'newsletter' if selected == 'newsletter_pro' else 'subscribe'}"
     try:
-        url = stripe_billing.create_checkout_session(user.id, user.email, success, cancel)
+        url = stripe_billing.create_checkout_session(user.id, user.email, success, cancel, selected)
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:

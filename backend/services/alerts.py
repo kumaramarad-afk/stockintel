@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.config import settings
 from app.models import AlertEvent, User, Watchlist, WatchlistItem
+from services.paywall import is_paid_plan
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,7 @@ def _watchers(db: Session, ticker: str) -> list[User]:
     seen: set = set()
     for board in watchlists:
         user = board.user
-        if user is None or user.plan != "pro" or not user.is_active or user.id in seen:
+        if user is None or not is_paid_plan(user.plan) or not user.is_active or user.id in seen:
             continue
         for item in board.items or []:
             stock = getattr(item, "stock", None)

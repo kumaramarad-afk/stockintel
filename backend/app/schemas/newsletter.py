@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
@@ -25,6 +26,7 @@ class NewsletterIssueRead(BaseModel):
     body: str
     published_at: datetime | None
     created_at: datetime
+    ticker: str | None = None
 
 
 class SubscribeRequest(BaseModel):
@@ -38,3 +40,39 @@ class SubscribeResponse(BaseModel):
     newsletter_id: uuid.UUID
     email: EmailStr
     message: str
+
+
+class NewsletterStatusRead(BaseModel):
+    tier: str
+    status: str
+    newsletter_enabled: bool
+    subscribed_at: datetime | None = None
+    newsletter_emails_received: int = 0
+    email_preference: str = "daily"
+
+
+class EmailPreferenceRequest(BaseModel):
+    preference: str = Field(min_length=2, max_length=20)
+
+
+class NewsletterArchiveItem(BaseModel):
+    date: str
+    ticker: str
+    reason: str
+    sentiment: str
+    issue_id: uuid.UUID | None = None
+    research_path: str
+
+
+class NewsletterTodayRead(BaseModel):
+    date: str | None = None
+    ticker: str | None = None
+    reason: str | None = None
+    sentiment: str | None = None
+    research_path: str | None = None
+    issue_id: uuid.UUID | None = None
+    full_access: bool = False
+    movers: list[dict[str, Any]] = Field(default_factory=list)
+    earnings: list[dict[str, Any]] = Field(default_factory=list)
+    macro: dict[str, Any] = Field(default_factory=dict)
+    html: str | None = None

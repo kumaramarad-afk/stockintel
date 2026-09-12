@@ -14,9 +14,18 @@ from app.models import ReportView, User
 
 PLACEHOLDER = "$$$.$$"
 MONTHLY_LIMIT = settings.monthly_report_limit
+PAID_PLANS = frozenset({"pro", "newsletter_pro"})
 
 PUBLIC_LOCKED = ["targets", "direction", "summary", "risks", "catalysts", "analyst_case", "insider_amounts"]
 BASIC_LOCKED = ["targets", "direction", "risks", "catalysts", "analyst_case", "insider_amounts"]
+
+
+def is_paid_plan(plan: str | None) -> bool:
+    return (plan or "") in PAID_PLANS
+
+
+def is_newsletter_plan(plan: str | None) -> bool:
+    return (plan or "") == "newsletter_pro"
 
 
 def current_period(now: datetime | None = None) -> str:
@@ -57,7 +66,7 @@ def quota_fields(user: User | None, db: Session | None = None) -> dict[str, int]
             "reports_remaining": MONTHLY_LIMIT,
         }
     used = count_views(db, user.id) if db is not None else reports_generated_of(user)
-    remaining = MONTHLY_LIMIT if user.plan == "pro" else max(0, MONTHLY_LIMIT - used)
+    remaining = MONTHLY_LIMIT if is_paid_plan(user.plan) else max(0, MONTHLY_LIMIT - used)
     return {
         "reports_generated": used,
         "reports_used": used,
@@ -67,7 +76,7 @@ def quota_fields(user: User | None, db: Session | None = None) -> dict[str, int]
 
 
 def record_view(db: Session, user: User, ticker: str) -> None:
-    if user.plan == "pro":
+    if is_paid_plan(user.plan):
         return
     month = current_period()
     symbol = ticker.upper()
@@ -97,9 +106,9 @@ def resolve_access(user: User | None, ticker: str, db: Session | None, consume: 
             "locked_fields": list(PUBLIC_LOCKED),
             **quota_fields(user, db),
         }
-    if user.plan == "pro":
+    if is_paid_plan(user.plan):
         return {
-            "tier": "pro",
+            "tier": user.plan,
             "entitlement": "full",
             "pro": True,
             "locked_fields": [],

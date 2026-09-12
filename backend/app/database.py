@@ -48,6 +48,9 @@ def ensure_user_schema() -> None:
         "stripe_subscription_id": "VARCHAR(255)",
         "oauth_provider": "VARCHAR(32)",
         "oauth_subject": "VARCHAR(255)",
+        "newsletter_subscription_status": "VARCHAR(50) DEFAULT 'none'",
+        "newsletter_email_preference": "VARCHAR(50) DEFAULT 'daily'",
+        "newsletter_subscribed_at": "TIMESTAMPTZ" if dialect == "postgresql" else "DATETIME",
     }
     if dialect == "postgresql":
         with engine.begin() as connection:
@@ -64,11 +67,13 @@ def ensure_user_schema() -> None:
                     """
                 )
             )
+            connection.execute(text("ALTER TABLE newsletter_issues ADD COLUMN IF NOT EXISTS ticker VARCHAR(16)"))
         return
     if dialect != "sqlite":
         return
     with engine.connect() as connection:
         cols = {row[1] for row in connection.execute(text("PRAGMA table_info(users)"))}
+        issue_cols = {row[1] for row in connection.execute(text("PRAGMA table_info(newsletter_issues)"))}
         connection.commit()
     for name, definition in extra_columns.items():
         if name in cols:
@@ -79,6 +84,12 @@ def ensure_user_schema() -> None:
                 connection.execute(text(f'ALTER TABLE users ADD COLUMN "{name}" {sqlite_def}'))
         except Exception:
             continue
+    if "ticker" not in issue_cols:
+        try:
+            with engine.begin() as connection:
+                connection.execute(text('ALTER TABLE newsletter_issues ADD COLUMN ticker VARCHAR(16)'))
+        except Exception:
+            pass
     with engine.begin() as connection:
         try:
             connection.execute(

@@ -8,7 +8,7 @@ from app.deps import current_user, db_session
 from app.models import User
 from app.schemas.user import SubscribePlanRequest, TokenResponse, UserCreate, UserLogin, UserRead
 from services.auth import create_token, hash_password, verify_password
-from services.paywall import quota_fields
+from services.paywall import is_paid_plan, quota_fields
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -69,7 +69,16 @@ def subscribe_plan(
     db: Session = Depends(db_session),
 ) -> UserRead:
     user.plan = payload.plan
-    user.subscribed_at = datetime.now(timezone.utc) if payload.plan == "pro" else None
+    if is_paid_plan(payload.plan):
+        user.subscribed_at = datetime.now(timezone.utc)
+    else:
+        user.subscribed_at = None
+    if payload.plan == "newsletter_pro":
+        user.newsletter_subscription_status = "active"
+        user.newsletter_email_preference = "daily"
+        user.newsletter_subscribed_at = user.newsletter_subscribed_at or datetime.now(timezone.utc)
+    elif payload.plan == "free" and (user.newsletter_subscription_status or "none") == "active":
+        user.newsletter_subscription_status = "cancelled"
     db.add(user)
     db.commit()
     db.refresh(user)

@@ -1,4 +1,11 @@
-from app.models.newsletter import Newsletter, NewsletterIssue, NewsletterSubscription, Subscriber
+from app.models.newsletter import (
+    Newsletter,
+    NewsletterIssue,
+    NewsletterPick,
+    NewsletterSend,
+    NewsletterSubscription,
+    Subscriber,
+)
 from app.models.report_view import AlertEvent, ReportView
 from app.models.research import ResearchNote
 from app.models.stock import PriceSnapshot, Stock
@@ -14,6 +21,8 @@ __all__ = [
     "ResearchNote",
     "Newsletter",
     "NewsletterIssue",
+    "NewsletterPick",
+    "NewsletterSend",
     "Subscriber",
     "NewsletterSubscription",
     "ReportView",

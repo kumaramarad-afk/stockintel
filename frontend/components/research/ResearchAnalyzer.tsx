@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 
 import { ResearchHero } from "@/components/research/ResearchHero";
 import { PaywallLock, UpgradeButton } from "@/components/research/PaywallLock";
@@ -33,7 +34,7 @@ import type {
   TechnicalsData,
   TopAnalyst,
 } from "@/lib/research";
-import { apiUrl } from "@/lib/api";
+import { hasNewsletter, isPaidPlan } from "@/lib/plans";
 
 const SECTIONS = [
   "header",
@@ -175,6 +176,11 @@ export function ResearchAnalyzer() {
   const load = useCallback(async (symbol: string) => {
     setActive(symbol);
     sessionStorage.setItem("gsr_resume_ticker", symbol);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("ticker", symbol);
+      window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+    }
     for (const section of SECTIONS) {
       setters[section]({ loading: true, error: null, data: null, available: false });
     }
@@ -204,6 +210,13 @@ export function ResearchAnalyzer() {
 
   useEffect(() => {
     if (authLoading) return;
+    const fromQuery =
+      typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("ticker")?.trim().toUpperCase();
+    if (fromQuery) {
+      setTicker(fromQuery);
+      void load(fromQuery);
+      return;
+    }
     if (active) {
       void load(active);
       return;
@@ -232,9 +245,9 @@ export function ResearchAnalyzer() {
       access?.reports_remaining ??
       (access?.reports_limit ?? 5) - (access?.reports_used ?? 0),
   );
-  const quotaExhausted = Boolean(user && user.plan !== "pro" && remaining <= 0);
+  const quotaExhausted = Boolean(user && !isPaidPlan(user.plan) && remaining <= 0);
   const quotaLabel =
-    user && user.plan !== "pro" ? `${remaining} / ${user.reports_limit ?? 5} free reports remaining this month` : null;
+    user && !isPaidPlan(user.plan) ? `${remaining} / ${user.reports_limit ?? 5} free reports remaining this month` : null;
 
   return (
     <section className="space-y-8">
@@ -254,11 +267,32 @@ export function ResearchAnalyzer() {
         }}
       />
 
+      {!hasNewsletter(user?.plan) && (
+        <div className="flex flex-col gap-3 rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-50 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-semibold">Daily market briefing at 8 AM UTC</p>
+            <p className="text-amber-100/80">Newsletter Pro adds the morning desk and a 90-day archive for $15/month, with unlimited research.</p>
+          </div>
+          <Link
+            href="/newsletter"
+            className="rounded-xl bg-emerald-500 px-4 py-2 text-center text-sm font-semibold text-slate-950 hover:bg-emerald-400"
+          >
+            Open newsletter
+          </Link>
+        </div>
+      )}
+
       {showReport && (
         <div className="space-y-6">
           {access && (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gsr-border bg-gsr-card px-4 py-3 text-sm">
-              {access.pro && <p className="text-gsr-accent">Pro desk unlocked — full metrics and alerts are live.</p>}
+              {access.pro && (
+                <p className="text-gsr-accent">
+                  {hasNewsletter(user?.plan)
+                    ? "Newsletter Pro unlocked — full research and the daily briefing are live."
+                    : "Pro desk unlocked — full metrics and alerts are live."}
+                </p>
+              )}
               {access.entitlement === "full" && !access.pro && (
                 <p className="text-gsr-muted">{remaining} / {access.reports_limit} free reports remaining this month.</p>
               )}

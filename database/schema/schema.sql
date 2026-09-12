@@ -81,8 +81,31 @@ CREATE TABLE IF NOT EXISTS newsletter_issues (
     excerpt TEXT,
     body TEXT NOT NULL,
     published_at TIMESTAMPTZ,
+    ticker VARCHAR(16),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (newsletter_id, slug)
+);
+
+CREATE TABLE IF NOT EXISTS newsletter_picks (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    pick_date DATE NOT NULL UNIQUE,
+    ticker VARCHAR(16) NOT NULL,
+    reason TEXT NOT NULL,
+    analyst_upgrades INTEGER NOT NULL DEFAULT 0,
+    institutional_buying DOUBLE PRECISION NOT NULL DEFAULT 0,
+    sentiment VARCHAR(50) NOT NULL DEFAULT 'bullish',
+    issue_id UUID REFERENCES newsletter_issues(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS newsletter_sends (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    pick_id UUID NOT NULL REFERENCES newsletter_picks(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    opened_at TIMESTAMPTZ,
+    clicked_at TIMESTAMPTZ,
+    click_url VARCHAR(255)
 );
 
 CREATE TABLE IF NOT EXISTS subscribers (
@@ -108,4 +131,6 @@ CREATE INDEX IF NOT EXISTS idx_research_stock ON research_notes (stock_id);
 CREATE INDEX IF NOT EXISTS idx_research_published ON research_notes (published_at DESC);
 CREATE INDEX IF NOT EXISTS idx_watchlists_user ON watchlists (user_id);
 CREATE INDEX IF NOT EXISTS idx_issues_newsletter ON newsletter_issues (newsletter_id);
+CREATE INDEX IF NOT EXISTS idx_newsletter_picks_date ON newsletter_picks (pick_date DESC);
+CREATE INDEX IF NOT EXISTS idx_newsletter_sends_user ON newsletter_sends (user_id);
 CREATE INDEX IF NOT EXISTS idx_subscribers_email ON subscribers (email);

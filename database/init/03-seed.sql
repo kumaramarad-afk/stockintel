@@ -30,15 +30,27 @@ VALUES
   ('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1', 'StockIntel Weekly', 'weekly', 'Concise market, research, and earnings briefing.')
 ON CONFLICT (slug) DO NOTHING;
 
-INSERT INTO newsletter_issues (newsletter_id, title, slug, excerpt, body, published_at)
+INSERT INTO newsletter_issues (newsletter_id, title, slug, excerpt, body, published_at, ticker)
 SELECT id,
   'AI capex and the next earnings season',
   'ai-capex-earnings',
   'What mega-cap spend signals for semiconductors, cloud, and software multiples.',
   'This week we map AI infrastructure spend against earnings quality, balance-sheet flexibility, and valuation support across the coverage universe.',
-  NOW() - INTERVAL '3 days'
+  NOW() - INTERVAL '3 days',
+  'NVDA'
 FROM newsletters WHERE slug = 'weekly'
 ON CONFLICT (newsletter_id, slug) DO NOTHING;
+
+INSERT INTO newsletter_picks (pick_date, ticker, reason, analyst_upgrades, institutional_buying, sentiment)
+VALUES (
+  CURRENT_DATE,
+  'NVDA',
+  'Coverage revisions and institutional flow concentrated on the accelerator franchise this session.',
+  3,
+  84.2,
+  'bullish'
+)
+ON CONFLICT (pick_date) DO NOTHING;
 
 INSERT INTO research_notes (stock_id, author_id, title, summary, body, rating, target_price, published_at)
 SELECT s.id,

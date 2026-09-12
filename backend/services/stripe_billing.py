@@ -11,6 +11,8 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 PRO_PRODUCT_NAME = "GetStockReport Pro"
+NEWSLETTER_PRODUCT_NAME = "GetStockReport Newsletter Pro"
+PAID_PLANS = frozenset({"pro", "newsletter_pro"})
 
 
 def _configure() -> None:
@@ -19,10 +21,38 @@ def _configure() -> None:
     stripe.api_key = settings.stripe_secret_key
 
 
-def create_checkout_session(user_id: UUID, email: str, success_url: str, cancel_url: str) -> str:
+def normalize_plan(plan: str | None) -> str:
+    value = (plan or "pro").strip().lower()
+    return value if value in PAID_PLANS else "pro"
+
+
+def create_checkout_session(
+    user_id: UUID,
+    email: str,
+    success_url: str,
+    cancel_url: str,
+    plan: str = "pro",
+) -> str:
     _configure()
+    selected = normalize_plan(plan)
     line_item: dict[str, Any]
-    if settings.stripe_price_id:
+    if selected == "newsletter_pro":
+        if settings.stripe_newsletter_price_id:
+            line_item = {"price": settings.stripe_newsletter_price_id, "quantity": 1}
+        else:
+            line_item = {
+                "price_data": {
+                    "currency": "usd",
+                    "unit_amount": settings.newsletter_price_cents,
+                    "recurring": {"interval": "month"},
+                    "product_data": {
+                        "name": NEWSLETTER_PRODUCT_NAME,
+                        "description": "Daily market briefing plus unlimited research reports",
+                    },
+                },
+                "quantity": 1,
+            }
+    elif settings.stripe_price_id:
         line_item = {"price": settings.stripe_price_id, "quantity": 1}
     else:
         line_item = {
@@ -40,8 +70,8 @@ def create_checkout_session(user_id: UUID, email: str, success_url: str, cancel_
         client_reference_id=str(user_id),
         success_url=success_url,
         cancel_url=cancel_url,
-        metadata={"user_id": str(user_id)},
-        subscription_data={"metadata": {"user_id": str(user_id)}},
+        metadata={"user_id": str(user_id), "plan": selected},
+        subscription_data={"metadata": {"user_id": str(user_id), "plan": selected}},
         line_items=[line_item],
         allow_promotion_codes=True,
     )
@@ -72,6 +102,19 @@ def stripe_id(value: Any) -> str | None:
     if isinstance(value, dict):
         return stripe_id(value.get("id"))
     return stripe_id(getattr(value, "id", None))
+
+
+def checkout_plan(session: dict[str, Any]) -> str:
+    metadata = session.get("metadata") or {}
+    raw = str(metadata.get("plan") or "").strip().lower()
+    if raw in PAID_PLANS:
+        return raw
+    subscription = session.get("subscription")
+    if isinstance(subscription, dict):
+        sub_plan = str((subscription.get("metadata") or {}).get("plan") or "").strip().lower()
+        if sub_plan in PAID_PLANS:
+            return sub_plan
+    return "pro"
 
 
 def checkout_user_id(session: dict[str, Any]) -> str | None:

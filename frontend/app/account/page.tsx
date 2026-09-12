@@ -5,6 +5,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 
 import { useAuth } from "@/components/layout/AuthProvider";
 import { formatDate } from "@/lib/format";
+import { hasNewsletter, isPaidPlan, planLabel } from "@/lib/plans";
 import { readToken } from "@/lib/session";
 
 function AccountInner() {
@@ -62,12 +63,12 @@ function AccountInner() {
           </div>
           <div>
             <p className="text-xs uppercase tracking-[0.16em] text-gsr-muted">Plan</p>
-            <p className="mt-1 text-lg font-semibold capitalize text-gsr-accent">{user.plan}</p>
+            <p className="mt-1 text-lg font-semibold capitalize text-gsr-accent">{planLabel(user.plan)}</p>
           </div>
           <div>
             <p className="text-xs uppercase tracking-[0.16em] text-gsr-muted">Free reports remaining this month</p>
             <p className="mt-1 text-lg font-semibold">
-              {user.plan === "pro"
+              {isPaidPlan(user.plan)
                 ? "Unlimited"
                 : `${user.reports_remaining ?? Math.max(0, (user.reports_limit ?? 5) - (user.reports_used ?? 0))} / ${user.reports_limit ?? 5}`}
             </p>
@@ -81,7 +82,7 @@ function AccountInner() {
           <p className="text-sm text-gsr-muted">Pro since {formatDate(user.subscribed_at)}</p>
         )}
         <div className="flex flex-wrap gap-3 pt-2">
-          {user.plan === "pro" ? (
+          {isPaidPlan(user.plan) ? (
             <button
               type="button"
               disabled={portalBusy}
@@ -102,9 +103,25 @@ function AccountInner() {
               onClick={() => void startCheckout().catch(() => router.push("/subscribe"))}
               className="rounded-xl bg-gsr-accent px-5 py-2.5 text-sm font-semibold text-gsr-bg hover:brightness-110"
             >
-              🔒 Unlock Full Analyst Briefing ($7/mo)
+              Unlock Full Analyst Briefing ($7/mo)
             </button>
           )}
+          {!hasNewsletter(user.plan) && (
+            <button
+              type="button"
+              onClick={() => void startCheckout("newsletter_pro").catch(() => router.push("/newsletter"))}
+              className="rounded-xl border border-gsr-border px-5 py-2.5 text-sm hover:border-gsr-accent"
+            >
+              Newsletter Pro ($15/mo)
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => router.push("/newsletter")}
+            className="rounded-xl border border-gsr-border px-5 py-2.5 text-sm hover:border-white/40"
+          >
+            Newsletter desk
+          </button>
           <button
             type="button"
             onClick={() => {
