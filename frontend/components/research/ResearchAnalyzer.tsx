@@ -34,6 +34,7 @@ import type {
   TechnicalsData,
   TopAnalyst,
 } from "@/lib/research";
+import { apiUrl } from "@/lib/api";
 import { hasNewsletter, isPaidPlan } from "@/lib/plans";
 
 const SECTIONS = [
