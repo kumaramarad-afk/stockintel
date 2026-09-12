@@ -6,7 +6,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { fetchMarketQuotes, formatTapePercent, formatTapePrice, POPULAR_SYMBOLS, type MarketQuote } from "@/lib/markets";
 
 const PILLARS = [
-  { icon: Lock, label: "🔒 Gated Pro Signals" },
+  { icon: Lock, label: "🔒 Gated Premium Signals" },
   { icon: Zap, label: "⚡ Instant AI Synthesis" },
   { icon: BarChart3, label: "📊 100% Verified Filings" },
 ] as const;

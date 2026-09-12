@@ -8,6 +8,7 @@ cd "$HOME/stockintel/backend"
 # shellcheck disable=SC1091
 source venv/bin/activate
 pip install -r requirements.txt
+alembic upgrade head
 pm2 restart backend --update-env
 
 cd "$HOME/stockintel/frontend"

@@ -1,9 +1,9 @@
 export function isPaidPlan(plan?: string | null) {
-  return plan === "pro" || plan === "newsletter_pro";
+  return plan === "pro" || plan === "newsletter_pro" || plan === "premium";
 }
 
 export function hasNewsletter(plan?: string | null) {
-  return plan === "newsletter_pro";
+  return isPaidPlan(plan);
 }
 
 export function researchHref(ticker: string) {
@@ -11,7 +11,6 @@ export function researchHref(ticker: string) {
 }
 
 export function planLabel(plan?: string | null) {
-  if (plan === "newsletter_pro") return "Newsletter Pro";
-  if (plan === "pro") return "Pro";
+  if (isPaidPlan(plan)) return "Premium";
   return "Free";
 }

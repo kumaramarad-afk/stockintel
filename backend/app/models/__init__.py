@@ -6,6 +6,7 @@ from app.models.newsletter import (
     NewsletterSubscription,
     Subscriber,
 )
+from app.models.plan_exception import PlanException
 from app.models.report_view import AlertEvent, ReportView
 from app.models.research import ResearchNote
 from app.models.stock import PriceSnapshot, Stock
@@ -27,4 +28,5 @@ __all__ = [
     "NewsletterSubscription",
     "ReportView",
     "AlertEvent",
+    "PlanException",
 ]

@@ -23,7 +23,7 @@ export function UpgradeButton({ className = "" }: { className?: string }) {
       onClick={() => void onClick()}
       className={`rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/20 transition-all hover:bg-emerald-400 ${className}`}
     >
-      🔒 Unlock Full Analyst Briefing ($7/mo)
+      🔒 Unlock Premium ($12/mo)
     </button>
   );
 }

@@ -10,11 +10,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import ReportView, User
+from app.models import PlanException, ReportView, User
 
 PLACEHOLDER = "$$$.$$"
 MONTHLY_LIMIT = settings.monthly_report_limit
-PAID_PLANS = frozenset({"pro", "newsletter_pro"})
+PAID_PLANS = frozenset({"pro", "newsletter_pro", "premium"})
+DISPLAY_PLAN = "premium"
 
 PUBLIC_LOCKED = ["targets", "direction", "summary", "risks", "catalysts", "analyst_case", "insider_amounts"]
 BASIC_LOCKED = ["targets", "direction", "risks", "catalysts", "analyst_case", "insider_amounts"]
@@ -25,7 +26,32 @@ def is_paid_plan(plan: str | None) -> bool:
 
 
 def is_newsletter_plan(plan: str | None) -> bool:
-    return (plan or "") == "newsletter_pro"
+    return is_paid_plan(plan)
+
+
+def normalize_email(email: str | None) -> str:
+    return (email or "").strip().lower()
+
+
+def email_is_comped(db: Session | None, email: str | None) -> bool:
+    if db is None or not email:
+        return False
+    row = db.scalar(select(PlanException.id).where(PlanException.email == normalize_email(email)))
+    return row is not None
+
+
+def effective_plan(user: User | None, db: Session | None = None) -> str:
+    if user is None:
+        return "guest"
+    if is_paid_plan(user.plan):
+        return DISPLAY_PLAN
+    if email_is_comped(db, user.email):
+        return DISPLAY_PLAN
+    return user.plan or "free"
+
+
+def user_has_premium(user: User | None, db: Session | None = None) -> bool:
+    return is_paid_plan(effective_plan(user, db))
 
 
 def current_period(now: datetime | None = None) -> str:
@@ -66,7 +92,7 @@ def quota_fields(user: User | None, db: Session | None = None) -> dict[str, int]
             "reports_remaining": MONTHLY_LIMIT,
         }
     used = count_views(db, user.id) if db is not None else reports_generated_of(user)
-    remaining = MONTHLY_LIMIT if is_paid_plan(user.plan) else max(0, MONTHLY_LIMIT - used)
+    remaining = MONTHLY_LIMIT if user_has_premium(user, db) else max(0, MONTHLY_LIMIT - used)
     return {
         "reports_generated": used,
         "reports_used": used,
@@ -76,7 +102,7 @@ def quota_fields(user: User | None, db: Session | None = None) -> dict[str, int]
 
 
 def record_view(db: Session, user: User, ticker: str) -> None:
-    if is_paid_plan(user.plan):
+    if user_has_premium(user, db):
         return
     month = current_period()
     symbol = ticker.upper()
@@ -106,9 +132,9 @@ def resolve_access(user: User | None, ticker: str, db: Session | None, consume: 
             "locked_fields": list(PUBLIC_LOCKED),
             **quota_fields(user, db),
         }
-    if is_paid_plan(user.plan):
+    if user_has_premium(user, db):
         return {
-            "tier": user.plan,
+            "tier": effective_plan(user, db),
             "entitlement": "full",
             "pro": True,
             "locked_fields": [],

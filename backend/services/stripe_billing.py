@@ -10,9 +10,10 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-PRO_PRODUCT_NAME = "GetStockReport Pro"
-NEWSLETTER_PRODUCT_NAME = "GetStockReport Newsletter Pro"
-PAID_PLANS = frozenset({"pro", "newsletter_pro"})
+PRO_PRODUCT_NAME = "GetStockReport Premium"
+NEWSLETTER_PRODUCT_NAME = "GetStockReport Premium"
+PAID_PLANS = frozenset({"pro", "newsletter_pro", "premium"})
+PREMIUM_PLAN = "premium"
 
 
 def _configure() -> None:
@@ -22,8 +23,8 @@ def _configure() -> None:
 
 
 def normalize_plan(plan: str | None) -> str:
-    value = (plan or "pro").strip().lower()
-    return value if value in PAID_PLANS else "pro"
+    value = (plan or PREMIUM_PLAN).strip().lower()
+    return PREMIUM_PLAN if value in PAID_PLANS or value in {"", "pro"} else PREMIUM_PLAN
 
 
 def create_checkout_session(
@@ -31,36 +32,22 @@ def create_checkout_session(
     email: str,
     success_url: str,
     cancel_url: str,
-    plan: str = "pro",
+    plan: str = "premium",
 ) -> str:
     _configure()
-    selected = normalize_plan(plan)
-    line_item: dict[str, Any]
-    if selected == "newsletter_pro":
-        if settings.stripe_newsletter_price_id:
-            line_item = {"price": settings.stripe_newsletter_price_id, "quantity": 1}
-        else:
-            line_item = {
-                "price_data": {
-                    "currency": "usd",
-                    "unit_amount": settings.newsletter_price_cents,
-                    "recurring": {"interval": "month"},
-                    "product_data": {
-                        "name": NEWSLETTER_PRODUCT_NAME,
-                        "description": "Daily market briefing plus unlimited research reports",
-                    },
-                },
-                "quantity": 1,
-            }
-    elif settings.stripe_price_id:
-        line_item = {"price": settings.stripe_price_id, "quantity": 1}
+    selected = PREMIUM_PLAN
+    if settings.stripe_price_id:
+        line_item: dict[str, Any] = {"price": settings.stripe_price_id, "quantity": 1}
     else:
         line_item = {
             "price_data": {
                 "currency": "usd",
                 "unit_amount": settings.pro_price_cents,
                 "recurring": {"interval": "month"},
-                "product_data": {"name": PRO_PRODUCT_NAME, "description": "Full analyst briefings and real-time alerts"},
+                "product_data": {
+                    "name": PRO_PRODUCT_NAME,
+                    "description": "Unlimited research, daily briefing, and 90-day archive",
+                },
             },
             "quantity": 1,
         }
@@ -105,16 +92,7 @@ def stripe_id(value: Any) -> str | None:
 
 
 def checkout_plan(session: dict[str, Any]) -> str:
-    metadata = session.get("metadata") or {}
-    raw = str(metadata.get("plan") or "").strip().lower()
-    if raw in PAID_PLANS:
-        return raw
-    subscription = session.get("subscription")
-    if isinstance(subscription, dict):
-        sub_plan = str((subscription.get("metadata") or {}).get("plan") or "").strip().lower()
-        if sub_plan in PAID_PLANS:
-            return sub_plan
-    return "pro"
+    return PREMIUM_PLAN
 
 
 def checkout_user_id(session: dict[str, Any]) -> str | None:

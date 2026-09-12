@@ -51,3 +51,9 @@ def current_user(
             raise HTTPException(status_code=401, detail="Sign in required")
         raise HTTPException(status_code=401, detail="Invalid or expired session")
     return user
+
+
+def require_admin(user: User = Depends(current_user)) -> User:
+    if not user.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return user

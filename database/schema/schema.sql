@@ -133,4 +133,13 @@ CREATE INDEX IF NOT EXISTS idx_watchlists_user ON watchlists (user_id);
 CREATE INDEX IF NOT EXISTS idx_issues_newsletter ON newsletter_issues (newsletter_id);
 CREATE INDEX IF NOT EXISTS idx_newsletter_picks_date ON newsletter_picks (pick_date DESC);
 CREATE INDEX IF NOT EXISTS idx_newsletter_sends_user ON newsletter_sends (user_id);
+CREATE TABLE IF NOT EXISTS plan_exceptions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    email VARCHAR(255) NOT NULL UNIQUE,
+    plan VARCHAR(32) NOT NULL DEFAULT 'premium',
+    note VARCHAR(255),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE INDEX IF NOT EXISTS idx_subscribers_email ON subscribers (email);
+CREATE INDEX IF NOT EXISTS idx_plan_exceptions_email ON plan_exceptions (email);

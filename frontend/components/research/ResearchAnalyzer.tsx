@@ -272,7 +272,7 @@ export function ResearchAnalyzer() {
         <div className="flex flex-col gap-3 rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-50 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="font-semibold">Daily market briefing at 8 AM UTC</p>
-            <p className="text-amber-100/80">Newsletter Pro adds the morning desk and a 90-day archive for $15/month, with unlimited research.</p>
+            <p className="text-amber-100/80">Premium adds the morning desk and a 90-day archive for $12/month, with unlimited research.</p>
           </div>
           <Link
             href="/newsletter"
@@ -290,8 +290,8 @@ export function ResearchAnalyzer() {
               {access.pro && (
                 <p className="text-gsr-accent">
                   {hasNewsletter(user?.plan)
-                    ? "Newsletter Pro unlocked — full research and the daily briefing are live."
-                    : "Pro desk unlocked — full metrics and alerts are live."}
+                    ? "Premium unlocked — full research and the daily briefing are live."
+                    : "Premium desk unlocked — full metrics and alerts are live."}
                 </p>
               )}
               {access.entitlement === "full" && !access.pro && (

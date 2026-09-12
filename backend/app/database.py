@@ -48,6 +48,7 @@ def ensure_user_schema() -> None:
         "stripe_subscription_id": "VARCHAR(255)",
         "oauth_provider": "VARCHAR(32)",
         "oauth_subject": "VARCHAR(255)",
+        "is_admin": "BOOLEAN DEFAULT FALSE",
         "newsletter_subscription_status": "VARCHAR(50) DEFAULT 'none'",
         "newsletter_email_preference": "VARCHAR(50) DEFAULT 'daily'",
         "newsletter_subscribed_at": "TIMESTAMPTZ" if dialect == "postgresql" else "DATETIME",

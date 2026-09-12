@@ -16,29 +16,25 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["billing"])
 
-PRO_PLAN = "pro"
-NEWSLETTER_PLAN = "newsletter_pro"
+PRO_PLAN = "premium"
+NEWSLETTER_PLAN = "premium"
 FREE_PLAN = "free"
-PAID_PLANS = frozenset({PRO_PLAN, NEWSLETTER_PLAN})
+PAID_PLANS = frozenset({"pro", "newsletter_pro", "premium"})
 
 
 def activate_plan(user: User, plan: str, customer: str | None = None, subscription: str | None = None) -> None:
-    selected = plan if plan in PAID_PLANS else PRO_PLAN
+    selected = "premium" if plan in PAID_PLANS else PRO_PLAN
     user.plan = selected
     user.subscribed_at = datetime.now(timezone.utc)
     if customer:
         user.stripe_customer_id = customer
     if subscription:
         user.stripe_subscription_id = subscription
-    if selected == NEWSLETTER_PLAN:
-        user.newsletter_subscription_status = "active"
-        if (user.newsletter_email_preference or "off") == "off":
-            user.newsletter_email_preference = "daily"
-        if user.newsletter_subscribed_at is None:
-            user.newsletter_subscribed_at = datetime.now(timezone.utc)
-        return
-    if (user.newsletter_subscription_status or "none") == "active":
-        user.newsletter_subscription_status = "cancelled"
+    user.newsletter_subscription_status = "active"
+    if (user.newsletter_email_preference or "off") == "off":
+        user.newsletter_email_preference = "daily"
+    if user.newsletter_subscribed_at is None:
+        user.newsletter_subscribed_at = datetime.now(timezone.utc)
 
 
 def activate_pro(user: User, customer: str | None = None, subscription: str | None = None) -> None:

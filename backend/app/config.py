@@ -38,8 +38,8 @@ class Settings(BaseSettings):
     internal_api_key: str = ""
     newsletter_scheduler_enabled: bool = True
     monthly_report_limit: int = 5
-    pro_price_cents: int = 700
-    newsletter_price_cents: int = 1500
+    pro_price_cents: int = 1200
+    newsletter_price_cents: int = 1200
 
     @property
     def cors_origin_list(self) -> list[str]:

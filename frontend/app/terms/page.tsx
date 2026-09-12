@@ -4,8 +4,9 @@ export default function TermsPage() {
       <h1 className="text-3xl font-semibold text-white">Terms of Use</h1>
       <p>Last updated September 7, 2026.</p>
       <p>
-        GetStockReport provides market research for informational purposes only. Pro subscriptions are billed at $7 per
-        month until canceled. Free registered accounts include five report previews per calendar month.
+        GetStockReport provides market research for informational purposes only. Premium subscriptions are billed at $12
+        per month until canceled and include unlimited research plus the weekday briefing. Free registered accounts
+        include five full reports per calendar month.
       </p>
       <h2 className="pt-4 text-xl font-semibold text-white">Disclaimer of warranties and limitation of liability</h2>
       <p>

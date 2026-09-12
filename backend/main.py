@@ -10,6 +10,7 @@ from app.routers import (
     markets,
     newsletter,
     newsletters,
+    plan_exceptions,
     research,
     stocks,
     users,
@@ -41,6 +42,7 @@ app.include_router(research.router, prefix=api_prefix)
 app.include_router(markets.router, prefix=api_prefix)
 app.include_router(newsletters.router, prefix=api_prefix)
 app.include_router(newsletter.router, prefix=api_prefix)
+app.include_router(plan_exceptions.router, prefix=api_prefix)
 app.include_router(watchlists.router, prefix=api_prefix)
 app.include_router(users.router, prefix=api_prefix)
 app.include_router(auth_oauth.router, prefix=api_prefix)

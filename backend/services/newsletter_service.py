@@ -12,9 +12,9 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import SessionLocal
-from app.models import Newsletter, NewsletterIssue, NewsletterPick, NewsletterSend, User
-from services.paywall import is_newsletter_plan
-from services.providers import finnhub, yahoo_http
+from app.models import Newsletter, NewsletterIssue, NewsletterPick, NewsletterSend, PlanException, User
+from services.paywall import normalize_email, user_has_premium
+from services.providers import finnhub, sec_edgar, yahoo_http
 
 logger = logging.getLogger(__name__)
 
@@ -114,69 +114,171 @@ def macro_watch() -> dict[str, Any]:
     return payload
 
 
+def insider_activity(ticker: str, limit: int = 3) -> list[dict[str, Any]]:
+    try:
+        rows = sec_edgar.insider_transactions(ticker) or []
+    except Exception:
+        logger.exception("Insider lookup failed for %s", ticker)
+        return []
+    items = []
+    for row in rows[:limit]:
+        items.append(
+            {
+                "ticker": ticker.upper(),
+                "executive_name": row.get("name") or "Form 4 filer",
+                "title": row.get("title") or "Officer",
+                "transaction_type": row.get("action") or "Form 4",
+                "amount": row.get("value"),
+                "date": row.get("date"),
+            }
+        )
+    return items
+
+
+def institutional_flows(ticker: str, pick: NewsletterPick | None = None, limit: int = 5) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    if pick is not None and pick.institutional_buying:
+        items.append(
+            {
+                "ticker": ticker.upper(),
+                "fund_name": "Desk-noted institutional flow",
+                "value": float(pick.institutional_buying) * 1_000_000,
+                "shares": None,
+                "report_date": "this week",
+            }
+        )
+    return items[:limit]
+
+
+def weekly_scorecard(db: Session, current: NewsletterPick, limit: int = 5) -> list[dict[str, Any]]:
+    rows = db.scalars(
+        select(NewsletterPick)
+        .where(NewsletterPick.pick_date < current.pick_date)
+        .order_by(NewsletterPick.pick_date.desc())
+        .limit(limit)
+    ).all()
+    return [
+        {
+            "date": row.pick_date.isoformat(),
+            "ticker": row.ticker,
+            "reason": row.reason,
+            "sentiment": sentiment_label(row.sentiment),
+        }
+        for row in rows
+    ]
+
+
 def compile_email_html(
     pick: NewsletterPick,
     movers: list[dict[str, Any]],
     earnings: list[dict[str, Any]],
     macro: dict[str, Any],
+    insider_rows: list[dict[str, Any]] | None = None,
+    institution_rows: list[dict[str, Any]] | None = None,
+    scorecard: list[dict[str, Any]] | None = None,
 ) -> str:
     day = pick.pick_date.strftime("%A, %B %d, %Y")
+    site = settings.frontend_url.rstrip("/")
     parts = [
-        '<html><body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#0f172a;">',
-        "<h2>Market Open Briefing</h2>",
-        f'<p style="color:#64748b;">{day}</p>',
-        "<h3>Tape movers</h3>",
+        "<html><head><style>",
+        "body{font-family:Arial,sans-serif;max-width:700px;margin:0 auto;color:#0f172a;background:#ffffff;}",
+        ".header{background:#042f2e;color:#ecfdf5;padding:20px;text-align:center;}",
+        ".section{border:1px solid #d1d5db;margin:16px 0;padding:18px;border-radius:8px;}",
+        ".section h3{color:#065f46;margin-top:0;}",
+        ".note{background:#fff7ed;border:1px solid #fdba74;padding:12px;font-size:12px;margin:16px 0;}",
+        ".item{background:#f8fafc;padding:12px;margin:10px 0;border-radius:6px;}",
+        "</style></head><body>",
+        '<div class="header"><h2>Market Intelligence Brief</h2>',
+        f"<p>{day}</p></div>",
+        '<div class="note"><strong>Disclaimer:</strong> Educational and informational purposes only. Not financial advice. ',
+        "GetStockReport does not issue buy, sell, or hold recommendations. Consult a licensed advisor. Past performance is not future results.</div>",
+        '<div class="section"><h3>1. Tape alerts</h3>',
     ]
-    for index, mover in enumerate(movers, 1):
+    if not movers:
+        parts.append("<p>No large-cap tape movers were available for this window.</p>")
+    for mover in movers:
         change = float(mover.get("change_percent") or 0)
-        color = "#059669" if change >= 0 else "#e11d48"
-        direction = "up" if change >= 0 else "down"
+        direction = "higher" if change >= 0 else "lower"
         parts.append(
-            "<p>"
-            f"<strong>{index}. {mover.get('ticker')}</strong> "
-            f'<span style="color:{color};">{direction} {abs(change):.1f}%</span><br>'
+            '<div class="item">'
+            f"<strong>{mover.get('ticker')}</strong> printed {abs(change):.1f}% {direction} versus the prior close.<br>"
             f"{mover.get('headline') or ''}<br>"
-            f'<a href="{research_url(str(mover.get("ticker")))}">Open research</a>'
-            "</p>"
+            f'<a href="{research_url(str(mover.get("ticker")))}">Open the research report</a>'
+            "</div>"
         )
-    parts.append("<h3>Earnings this week</h3>")
+    parts.append("</div>")
+    parts.append('<div class="section"><h3>2. Insider Form 4 activity</h3><p><em>Historical SEC filings only. Not a recommendation.</em></p>')
+    if not insider_rows:
+        parts.append("<p>No recent Form 4 prints were available for the featured name.</p>")
+    for row in insider_rows or []:
+        amount = row.get("amount")
+        money = f"${amount:,.0f}" if isinstance(amount, (int, float)) else "an unspecified amount"
+        parts.append(
+            '<div class="item">'
+            f"<strong>{row.get('executive_name')}</strong> ({row.get('title')}) reported a {row.get('transaction_type')} "
+            f"in {row.get('ticker')} totaling {money}."
+            "</div>"
+        )
+    parts.append("</div>")
+    parts.append('<div class="section"><h3>3. Institutional 13F holdings</h3><p><em>Lagging 13F snapshots. Informational only.</em></p>')
+    if not institution_rows:
+        parts.append("<p>No 13F holder snapshot was available for the featured name.</p>")
+    for row in institution_rows or []:
+        value = row.get("value")
+        money = f"${value:,.0f}" if isinstance(value, (int, float)) else "n/a"
+        parts.append(
+            '<div class="item">'
+            f"<strong>{row.get('fund_name')}</strong> reported a {row.get('ticker')} holding of {money} "
+            f"(as of {row.get('report_date') or 'the latest 13F'})."
+            "</div>"
+        )
+    parts.append("</div>")
+    parts.append('<div class="section"><h3>4. Earnings this week</h3>')
     if not earnings:
         parts.append("<p>No earnings dates were available for this window.</p>")
     for row in earnings[:5]:
         estimate = row.get("eps_estimate")
-        actual = row.get("eps_actual")
         parts.append(
-            "<p>"
+            '<div class="item">'
             f"<strong>{row.get('date')}: {row.get('ticker')}</strong><br>"
-            f"Estimate: {estimate if estimate is not None else 'n/a'} | "
-            f"Prior print: {actual if actual is not None else 'n/a'}"
-            "</p>"
+            f"Consensus EPS estimate: {estimate if estimate is not None else 'n/a'}. "
+            "Use this as a calendar marker for possible volatility, not as a directional view."
+            "</div>"
         )
+    parts.append("</div>")
     oil = macro.get("oil_price")
     oil_change = macro.get("oil_change")
-    parts.extend(
-        [
-            "<h3>Macro watch</h3>",
-            "<p>"
-            f"Fed calendar: {macro.get('fed_event', 'n/a')}<br>"
-            f"Oil: {oil if oil is not None else 'n/a'}"
-            f"{'' if oil_change is None else f' ({oil_change:.1f}%)'}<br>"
-            f"VIX: {macro.get('vix', 'n/a')}<br>"
-            f"10Y yield: {macro.get('yield_10y', 'n/a')}"
-            "</p>",
-            f"<h3>Deep dive: {pick.ticker}</h3>",
-            f"<p><strong>{pick.reason}</strong></p>",
-            "<ul>"
-            f"<li>Coverage upgrades in the tape: {pick.analyst_upgrades}</li>"
-            f"<li>Institutional flow (USD millions): {pick.institutional_buying}</li>"
-            f"<li>Desk reading: {sentiment_label(pick.sentiment)}</li>"
-            "</ul>",
-            f'<p><a href="{research_url(pick.ticker)}" style="background:#10b981;color:#042f2e;padding:10px 16px;text-decoration:none;border-radius:8px;display:inline-block;">Open full institutional report</a></p>',
-            '<p style="font-size:12px;color:#94a3b8;">For educational and informational purposes only. Not financial advice. GetStockReport does not issue buy, sell, or hold recommendations.<br>'
-            f'<a href="{settings.frontend_url.rstrip("/")}/newsletter">Manage subscription</a> | '
-            f'<a href="{settings.frontend_url.rstrip("/")}/privacy">Privacy Policy</a></p>',
-            "</body></html>",
-        ]
+    parts.append('<div class="section"><h3>5. Macro watch</h3><p>')
+    parts.append(f"Fed calendar: {macro.get('fed_event', 'n/a')}<br>")
+    parts.append(f"Oil: {oil if oil is not None else 'n/a'}")
+    if oil_change is not None:
+        parts.append(f" ({oil_change:.1f}%)")
+    parts.append(f"<br>VIX: {macro.get('vix', 'n/a')}<br>10Y yield: {macro.get('yield_10y', 'n/a')}</p></div>")
+    parts.append(
+        '<div class="section"><h3>6. Featured research desk</h3>'
+        f"<p><strong>{pick.ticker}</strong> — {pick.reason}</p>"
+        f"<p>Coverage upgrades in the tape: {pick.analyst_upgrades} | Institutional flow (USD millions): {pick.institutional_buying}</p>"
+        f"<p>Desk reading: {sentiment_label(pick.sentiment)}</p>"
+        '<p class="note">Not a recommendation. Do your own research. '
+        f'<a href="{research_url(pick.ticker)}">Read the full institutional report</a></p></div>'
+    )
+    parts.append('<div class="section"><h3>7. Recent featured names</h3><p><em>Transparency archive. Not performance advertising.</em></p>')
+    if not scorecard:
+        parts.append("<p>No prior featured names are on file yet.</p>")
+    for row in scorecard or []:
+        parts.append(
+            '<div class="item">'
+            f"{row.get('date')}: <strong>{row.get('ticker')}</strong> — {row.get('sentiment')}<br>{row.get('reason')}"
+            "</div>"
+        )
+    parts.append("</div>")
+    parts.append(
+        '<div class="note"><strong>Full disclaimer:</strong> Not financial advice. Not a recommendation to transact. '
+        "Consult a licensed financial advisor. Verify independently before investing. "
+        f'<a href="{site}/legal/newsletter-disclaimer">Read the newsletter disclaimer</a> | '
+        f'<a href="{site}/newsletter">Manage subscription</a> | '
+        f'<a href="{site}/privacy">Privacy Policy</a></div>'
+        "</body></html>"
     )
     return "".join(parts)
 
@@ -205,7 +307,7 @@ def _send_via_sendgrid(to_addr: str, subject: str, html: str) -> bool:
     with httpx.Client(timeout=20.0) as client:
         response = client.post("https://api.sendgrid.com/v3/mail/send", json=payload, headers=headers)
     if response.status_code >= 400:
-        logger.warning("SendGrid rejected newsletter to %s (%s)", to_addr, response.status_code)
+        logger.warning("SendGrid rejected newsletter to %s (%s) %s", to_addr, response.status_code, response.text[:300])
         return False
     return True
 
@@ -265,18 +367,35 @@ def upsert_issue(db: Session, pick: NewsletterPick, html: str) -> NewsletterIssu
 
 
 def subscriber_query(db: Session) -> list[User]:
-    return list(
-        db.scalars(
-            select(User).where(
-                User.is_active.is_(True),
-                User.plan == "newsletter_pro",
-                User.newsletter_email_preference == "daily",
-            )
-        ).all()
-    )
+    users = []
+    for user in db.scalars(select(User).where(User.is_active.is_(True))).all():
+        if user_has_premium(user, db) and (user.newsletter_email_preference or "daily") == "daily":
+            users.append(user)
+    return users
 
 
-def generate_daily_newsletter(db: Session | None = None, send_email: bool = True) -> dict[str, Any]:
+def recipient_emails(db: Session, extra_emails: list[str] | None = None) -> list[tuple[str, User | None]]:
+    mapped: dict[str, User | None] = {}
+    for user in subscriber_query(db):
+        mapped[normalize_email(user.email)] = user
+    for row in db.scalars(select(PlanException)).all():
+        mapped.setdefault(normalize_email(row.email), None)
+    for raw in extra_emails or []:
+        address = normalize_email(raw)
+        if address:
+            mapped.setdefault(address, None)
+    users_by_email = {normalize_email(user.email): user for user in db.scalars(select(User)).all()}
+    out: list[tuple[str, User | None]] = []
+    for email, user in mapped.items():
+        out.append((email, user or users_by_email.get(email)))
+    return out
+
+
+def generate_daily_newsletter(
+    db: Session | None = None,
+    send_email: bool = True,
+    extra_emails: list[str] | None = None,
+) -> dict[str, Any]:
     owned = db is None
     session = db or SessionLocal()
     try:
@@ -286,25 +405,33 @@ def generate_daily_newsletter(db: Session | None = None, send_email: bool = True
         movers = market_movers()
         earnings = earnings_this_week()
         macro = macro_watch()
-        html = compile_email_html(pick, movers, earnings, macro)
+        insiders = insider_activity(pick.ticker)
+        institutions = institutional_flows(pick.ticker, pick)
+        scorecard = weekly_scorecard(session, pick)
+        html = compile_email_html(pick, movers, earnings, macro, insiders, institutions, scorecard)
         upsert_issue(session, pick, html)
         sent = 0
+        failed: list[str] = []
         if send_email:
             subject = f"Market Brief: {pick.ticker} — {pick.pick_date.strftime('%b %d')}"
-            for user in subscriber_query(session):
+            for email, user in recipient_emails(session, extra_emails):
                 try:
-                    delivered = _send_html_email(user.email, subject, html)
+                    delivered = _send_html_email(email, subject, html)
                 except Exception:
-                    logger.exception("Newsletter email failed for %s", user.email)
+                    logger.exception("Newsletter email failed for %s", email)
+                    failed.append(email)
                     continue
                 if not delivered:
+                    failed.append(email)
                     continue
-                session.add(NewsletterSend(pick_id=pick.id, user_id=user.id))
+                if user is not None:
+                    session.add(NewsletterSend(pick_id=pick.id, user_id=user.id))
                 sent += 1
         session.commit()
         return {
             "status": "success",
             "emails_sent": sent,
+            "failed": failed,
             "pick": pick.ticker,
             "date": pick.pick_date.isoformat(),
             "timestamp": datetime.now(timezone.utc).isoformat(),

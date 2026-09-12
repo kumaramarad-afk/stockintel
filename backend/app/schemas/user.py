@@ -26,6 +26,7 @@ class UserRead(BaseModel):
     is_active: bool
     is_admin: bool
     plan: str = "free"
+    complimentary: bool = False
     subscribed_at: datetime | None
     created_at: datetime
     reports_generated: int = 0
@@ -45,4 +46,4 @@ class TokenResponse(BaseModel):
 
 
 class SubscribePlanRequest(BaseModel):
-    plan: Literal["pro", "free", "newsletter_pro"] = "pro"
+    plan: Literal["pro", "free", "newsletter_pro", "premium"] = "premium"

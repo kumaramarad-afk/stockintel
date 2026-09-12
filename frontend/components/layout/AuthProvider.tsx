@@ -18,6 +18,8 @@ export type Account = {
   reports_limit?: number;
   reports_generated?: number;
   reports_remaining?: number;
+  is_admin?: boolean;
+  complimentary?: boolean;
   oauth_provider?: string | null;
   newsletter_subscription_status?: string;
   newsletter_email_preference?: string;
@@ -33,8 +35,8 @@ type AuthContextValue = {
   closeAuthModal: () => void;
   login: (email: string, password: string) => Promise<void>;
   register: (fullName: string, email: string, password: string) => Promise<void>;
-  subscribe: (plan?: "pro" | "free") => Promise<void>;
-  startCheckout: (plan?: "pro" | "newsletter_pro") => Promise<void>;
+  subscribe: (plan?: "pro" | "free" | "premium") => Promise<void>;
+  startCheckout: () => Promise<void>;
   startBillingPortal: () => Promise<void>;
   startOAuth: (provider: "google" | "apple") => void;
   applyToken: (value: string) => Promise<void>;
@@ -154,7 +156,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     applySession(payload.access_token, payload.user);
   }, []);
 
-  const subscribe = useCallback(async (plan: "pro" | "free" = "pro") => {
+  const subscribe = useCallback(async (plan: "pro" | "free" | "premium" = "premium") => {
     if (!token) throw new Error("Sign in to subscribe");
     const response = await fetch(apiUrl("/api/v1/users/subscribe"), {
       method: "POST",
@@ -165,13 +167,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser((await response.json()) as Account);
   }, [token]);
 
-  const startCheckout = useCallback(async (plan: "pro" | "newsletter_pro" = "pro") => {
+  const startCheckout = useCallback(async () => {
     if (!token) {
       setAuthModalOpen(true);
       return;
     }
-    const path = plan === "newsletter_pro" ? "/api/checkout?plan=newsletter_pro" : "/api/checkout";
-    const response = await fetch(apiUrl(path), {
+    const response = await fetch(apiUrl("/api/checkout"), {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
     });

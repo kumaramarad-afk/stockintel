@@ -180,7 +180,7 @@ def test_stripe_webhook_upgrades_and_cancels() -> None:
     }
     with patch("app.routers.webhooks.stripe_billing.parse_webhook", return_value=completed):
         assert client.post("/api/webhooks/stripe", json=completed).status_code == 200
-    assert client.get("/api/v1/users/me", headers=headers).json()["plan"] == "pro"
+    assert client.get("/api/v1/users/me", headers=headers).json()["plan"] == "premium"
     deleted = {
         "type": "customer.subscription.deleted",
         "data": {
@@ -251,7 +251,7 @@ def test_stripe_webhook_upgrades_nested_customer_object() -> None:
     ):
         assert client.post("/api/webhooks/stripe", json=completed).status_code == 200
     me = client.get("/api/v1/users/me", headers=headers).json()
-    assert me["plan"] == "pro"
+    assert me["plan"] == "premium"
 
 
 def test_verify_session_requires_auth() -> None:
@@ -279,8 +279,8 @@ def test_verify_session_upgrades_plan_when_webhook_is_late() -> None:
             headers=headers,
         )
     assert response.status_code == 200, response.text
-    assert response.json()["plan"] == "pro"
-    assert client.get("/api/v1/auth/me", headers=headers).json()["plan"] == "pro"
+    assert response.json()["plan"] == "premium"
+    assert client.get("/api/v1/auth/me", headers=headers).json()["plan"] == "premium"
 
 
 def test_billing_portal_returns_session_url() -> None:

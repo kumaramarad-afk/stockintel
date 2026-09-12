@@ -19,25 +19,25 @@ from services.newsletter_service import (
     get_pick,
     today_payload,
 )
-from services.paywall import is_newsletter_plan
+from services.paywall import effective_plan, user_has_premium
 
 router = APIRouter(prefix="/newsletter", tags=["newsletter"])
 
 
-def _require_newsletter(user: User) -> None:
-    if not is_newsletter_plan(user.plan):
-        raise HTTPException(status_code=403, detail="Newsletter Pro required")
+def _require_newsletter(user: User, db: Session) -> None:
+    if not user_has_premium(user, db):
+        raise HTTPException(status_code=403, detail="Premium required")
 
 
 @router.get("/status", response_model=NewsletterStatusRead)
 def newsletter_status(user: User = Depends(current_user), db: Session = Depends(db_session)) -> NewsletterStatusRead:
     status = user.newsletter_subscription_status or "none"
-    if is_newsletter_plan(user.plan) and status == "none":
+    if user_has_premium(user, db) and status == "none":
         status = "active"
     return NewsletterStatusRead(
-        tier=user.plan,
+        tier=effective_plan(user, db),
         status=status,
-        newsletter_enabled=(user.newsletter_email_preference or "daily") == "daily" and is_newsletter_plan(user.plan),
+        newsletter_enabled=(user.newsletter_email_preference or "daily") == "daily" and user_has_premium(user, db),
         subscribed_at=user.newsletter_subscribed_at or user.subscribed_at,
         newsletter_emails_received=emails_received(db, user.id),
         email_preference=user.newsletter_email_preference or "daily",
@@ -74,7 +74,7 @@ def newsletter_archive(
     user: User = Depends(current_user),
     db: Session = Depends(db_session),
 ) -> list[NewsletterArchiveItem]:
-    _require_newsletter(user)
+    _require_newsletter(user, db)
     return [NewsletterArchiveItem.model_validate(item) for item in archive_items(db, page, limit)]
 
 
@@ -84,7 +84,7 @@ def newsletter_archive_date(
     user: User = Depends(current_user),
     db: Session = Depends(db_session),
 ) -> NewsletterTodayRead:
-    _require_newsletter(user)
+    _require_newsletter(user, db)
     try:
         day = datetime.strptime(pick_date, "%Y-%m-%d").date()
     except ValueError as exc:
@@ -113,13 +113,14 @@ def newsletter_today(
     db: Session = Depends(db_session),
     user: User | None = Depends(optional_user),
 ) -> NewsletterTodayRead:
-    full = is_newsletter_plan(user.plan) if user is not None else False
+    full = user_has_premium(user, db) if user is not None else False
     return NewsletterTodayRead.model_validate(today_payload(db, full))
 
 
 @router.post("/admin/generate")
 def generate_newsletter_admin(
     api_key: str | None = Query(default=None),
+    to_email: str | None = Query(default=None),
     x_internal_key: str | None = Header(default=None, alias="X-Internal-Key"),
     db: Session = Depends(db_session),
 ) -> dict:
@@ -129,4 +130,5 @@ def generate_newsletter_admin(
     provided = api_key or x_internal_key
     if provided != expected:
         raise HTTPException(status_code=401, detail="Invalid API key")
-    return generate_daily_newsletter(db, send_email=True)
+    extras = [to_email] if to_email else None
+    return generate_daily_newsletter(db, send_email=True, extra_emails=extras)

@@ -15,6 +15,9 @@ export function Footer() {
           <Link href="/terms" className="hover:text-slate-100">
             Terms of Use
           </Link>
+          <Link href="/legal/newsletter-disclaimer" className="hover:text-slate-100">
+            Newsletter disclaimer
+          </Link>
         </div>
       </div>
     </footer>
