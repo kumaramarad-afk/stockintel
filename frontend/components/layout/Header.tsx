@@ -10,6 +10,7 @@ import { MarketTicker } from "@/components/layout/MarketTicker";
 const nav = [
   { href: "/research", label: "Research" },
   { href: "/newsletter", label: "Newsletter" },
+  { href: "/contact", label: "Contact" },
 ];
 
 export function Header() {

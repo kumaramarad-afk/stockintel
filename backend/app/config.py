@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     sendgrid_api_key: str = ""
     newsletter_from_email: str = "newsletter@getstockreport.com"
     newsletter_from_name: str = "GetStockReport"
+    contact_to_email: str = "support@getstockreport.com"
     internal_api_key: str = ""
     newsletter_scheduler_enabled: bool = True
     monthly_report_limit: int = 5

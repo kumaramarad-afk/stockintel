@@ -289,17 +289,30 @@ def _from_identity() -> tuple[str, str]:
     return name, email
 
 
-def _send_via_sendgrid(to_addr: str, subject: str, html: str) -> bool:
+def _send_via_sendgrid(
+    to_addr: str,
+    subject: str,
+    html: str,
+    *,
+    text: str | None = None,
+    reply_to: str | None = None,
+    reply_name: str | None = None,
+) -> bool:
     name, email = _from_identity()
-    payload = {
+    payload: dict[str, Any] = {
         "personalizations": [{"to": [{"email": to_addr}]}],
         "from": {"email": email, "name": name},
         "subject": subject,
         "content": [
-            {"type": "text/plain", "value": "Open GetStockReport for today's market briefing and deep-dive research."},
+            {
+                "type": "text/plain",
+                "value": text or "Open GetStockReport for today's market briefing and deep-dive research.",
+            },
             {"type": "text/html", "value": html},
         ],
     }
+    if reply_to:
+        payload["reply_to"] = {"email": reply_to, "name": reply_name or reply_to}
     headers = {
         "Authorization": f"Bearer {settings.sendgrid_api_key}",
         "Content-Type": "application/json",
@@ -312,11 +325,26 @@ def _send_via_sendgrid(to_addr: str, subject: str, html: str) -> bool:
     return True
 
 
-def _send_html_email(to_addr: str, subject: str, html: str) -> bool:
+def _send_html_email(
+    to_addr: str,
+    subject: str,
+    html: str,
+    *,
+    text: str | None = None,
+    reply_to: str | None = None,
+    reply_name: str | None = None,
+) -> bool:
     if not to_addr:
         return False
     if settings.sendgrid_api_key:
-        return _send_via_sendgrid(to_addr, subject, html)
+        return _send_via_sendgrid(
+            to_addr,
+            subject,
+            html,
+            text=text,
+            reply_to=reply_to,
+            reply_name=reply_name,
+        )
     if not settings.smtp_host:
         logger.info("Newsletter skipped (email unset): %s -> %s", to_addr, subject)
         return False
@@ -325,7 +353,9 @@ def _send_html_email(to_addr: str, subject: str, html: str) -> bool:
     message["From"] = f"{name} <{email}>"
     message["To"] = to_addr
     message["Subject"] = subject
-    message.set_content("Open GetStockReport for today's market briefing and deep-dive research.")
+    if reply_to:
+        message["Reply-To"] = f"{reply_name} <{reply_to}>" if reply_name else reply_to
+    message.set_content(text or "Open GetStockReport for today's market briefing and deep-dive research.")
     message.add_alternative(html, subtype="html")
     with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as smtp:
         smtp.starttls()

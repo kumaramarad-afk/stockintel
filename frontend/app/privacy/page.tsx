@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function PrivacyPage() {
   return (
     <article className="mx-auto max-w-3xl space-y-4 py-8 text-gsr-muted">
@@ -13,7 +15,17 @@ export default function PrivacyPage() {
         subscribe. Market data is retrieved from public and licensed sources and is shown for informational purposes
         only.
       </p>
-      <p>Contact research@getstockreport.com with privacy questions.</p>
+      <p>
+        Contact{" "}
+        <a href="mailto:support@getstockreport.com" className="text-gsr-accent hover:underline">
+          support@getstockreport.com
+        </a>{" "}
+        or use the{" "}
+        <Link href="/contact" className="text-gsr-accent hover:underline">
+          contact form
+        </Link>{" "}
+        with privacy questions.
+      </p>
     </article>
   );
 }

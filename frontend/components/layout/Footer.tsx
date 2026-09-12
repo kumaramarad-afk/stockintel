@@ -8,7 +8,10 @@ export function Footer() {
         <p className="max-w-xl sm:text-center">
           For educational and informational purposes only. Not financial advice.
         </p>
-        <div className="flex gap-4">
+        <div className="flex flex-wrap gap-4">
+          <Link href="/contact" className="hover:text-slate-100">
+            Contact
+          </Link>
           <Link href="/privacy" className="hover:text-slate-100">
             Privacy Policy
           </Link>
