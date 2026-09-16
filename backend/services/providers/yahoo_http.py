@@ -311,6 +311,60 @@ def quote_details(symbol: str) -> dict[str, Any]:
     return cached(f"yahoo:details:v3:{symbol}", _fetch, ttl=180)
 
 
+def rating_target_changes(symbol: str, days: int = 30, limit: int = 8) -> list[dict[str, Any]]:
+    def _fetch() -> list[dict[str, Any]]:
+        payload = _authed_json(
+            f"https://query1.finance.yahoo.com/v10/finance/quoteSummary/{symbol}",
+            {"modules": "upgradeDowngradeHistory,financialData"},
+        )
+        result = ((payload or {}).get("quoteSummary") or {}).get("result") or []
+        if not result:
+            return []
+        block = result[0]
+        history_rows = (block.get("upgradeDowngradeHistory") or {}).get("history") or []
+        parsed: list[dict[str, Any]] = []
+        last_by_firm: dict[str, float] = {}
+        ordered = []
+        for row in history_rows:
+            epoch = to_float(_raw(row, "epochGradeDate")) or to_float(row.get("epochGradeDate"))
+            if epoch and epoch > 1e12:
+                epoch = epoch / 1000
+            ordered.append((epoch or 0, row))
+        ordered.sort(key=lambda item: item[0])
+        cutoff = time.time() - days * 86400
+        for epoch, row in ordered:
+            firm = str(row.get("firm") or "Analyst desk")
+            new_target = to_float(_raw(row, "currentPriceTarget")) or to_float(row.get("currentPriceTarget"))
+            old_target = to_float(_raw(row, "previousPriceTarget")) or to_float(row.get("previousPriceTarget"))
+            if old_target is None:
+                old_target = last_by_firm.get(firm)
+            if new_target is not None:
+                last_by_firm[firm] = new_target
+            if epoch and epoch < cutoff:
+                continue
+            old_rating = str(row.get("fromGrade") or "").strip() or "n/a"
+            new_rating = str(row.get("toGrade") or row.get("action") or "").strip() or "n/a"
+            rating_changed = old_rating != new_rating
+            target_changed = old_target is not None and new_target is not None and float(old_target) != float(new_target)
+            if not rating_changed and not target_changed:
+                continue
+            parsed.append(
+                {
+                    "ticker": symbol.upper(),
+                    "firm": firm,
+                    "old_rating": old_rating,
+                    "new_rating": new_rating,
+                    "old_target": old_target,
+                    "new_target": new_target,
+                    "date": iso(datetime.fromtimestamp(epoch, tz=timezone.utc)) if epoch else None,
+                }
+            )
+        parsed.reverse()
+        return parsed[:limit]
+
+    return cached(f"yahoo:rating-targets:v2:{symbol}:{days}", _fetch, ttl=180)
+
+
 def _analyst_feed(history: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], dict[str, Any] | None]:
     parsed: list[dict[str, Any]] = []
     for row in history:

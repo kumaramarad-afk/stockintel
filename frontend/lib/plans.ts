@@ -7,7 +7,7 @@ export function hasNewsletter(plan?: string | null) {
 }
 
 export function researchHref(ticker: string) {
-  return `/research?ticker=${encodeURIComponent(ticker.trim().toUpperCase())}`;
+  return `/research/${encodeURIComponent(ticker.trim().toUpperCase())}`;
 }
 
 export function planLabel(plan?: string | null) {

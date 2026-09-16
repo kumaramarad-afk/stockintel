@@ -60,6 +60,8 @@ export type NewsletterStatus = {
   subscribed_at: string | null;
   newsletter_emails_received: number;
   email_preference: string;
+  newsletter_access?: string;
+  trial_business_day?: number;
 };
 
 export type NewsletterArchiveItem = {
@@ -79,6 +81,7 @@ export type NewsletterToday = {
   research_path: string | null;
   issue_id: string | null;
   full_access: boolean;
+  newsletter_access?: string;
   movers: Array<{
     ticker?: string;
     change_percent?: number;

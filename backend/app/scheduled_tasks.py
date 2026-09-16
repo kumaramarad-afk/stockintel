@@ -15,6 +15,7 @@ def _build_scheduler():
     from apscheduler.triggers.cron import CronTrigger
 
     from services.newsletter_service import generate_daily_newsletter
+    from services.report_cache import refresh_popular_reports
 
     job_scheduler = BackgroundScheduler(timezone="UTC")
 
@@ -25,10 +26,23 @@ def _build_scheduler():
         except Exception:
             logger.exception("Daily newsletter job failed")
 
+    def refresh_cached_reports() -> None:
+        try:
+            result = refresh_popular_reports()
+            logger.info("Report cache refresh: %s", result)
+        except Exception:
+            logger.exception("Weekly report cache refresh failed")
+
     job_scheduler.add_job(
         send_daily_newsletter,
         CronTrigger(day_of_week="mon-fri", hour=8, minute=0, timezone="UTC"),
         id="daily-newsletter",
+        replace_existing=True,
+    )
+    job_scheduler.add_job(
+        refresh_cached_reports,
+        CronTrigger(day_of_week="sun", hour=2, minute=0, timezone="UTC"),
+        id="weekly-report-refresh",
         replace_existing=True,
     )
     return job_scheduler
@@ -43,9 +57,9 @@ def start_scheduler() -> None:
     try:
         scheduler = _build_scheduler()
         scheduler.start()
-        logger.info("Newsletter scheduler started")
+        logger.info("Scheduler started (newsletter + weekly report refresh)")
     except Exception:
-        logger.exception("Could not start newsletter scheduler")
+        logger.exception("Could not start scheduler")
 
 
 def stop_scheduler() -> None:

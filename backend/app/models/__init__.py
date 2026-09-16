@@ -1,3 +1,4 @@
+from app.models.cached_report import CachedReport
 from app.models.newsletter import (
     Newsletter,
     NewsletterIssue,
@@ -20,6 +21,7 @@ __all__ = [
     "Watchlist",
     "WatchlistItem",
     "ResearchNote",
+    "CachedReport",
     "Newsletter",
     "NewsletterIssue",
     "NewsletterPick",

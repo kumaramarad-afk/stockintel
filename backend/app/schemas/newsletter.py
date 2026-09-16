@@ -49,6 +49,8 @@ class NewsletterStatusRead(BaseModel):
     subscribed_at: datetime | None = None
     newsletter_emails_received: int = 0
     email_preference: str = "daily"
+    newsletter_access: str = "none"
+    trial_business_day: int = 0
 
 
 class EmailPreferenceRequest(BaseModel):
@@ -72,7 +74,10 @@ class NewsletterTodayRead(BaseModel):
     research_path: str | None = None
     issue_id: uuid.UUID | None = None
     full_access: bool = False
+    newsletter_access: str = "none"
     movers: list[dict[str, Any]] = Field(default_factory=list)
     earnings: list[dict[str, Any]] = Field(default_factory=list)
     macro: dict[str, Any] = Field(default_factory=dict)
+    news: list[dict[str, Any]] = Field(default_factory=list)
+    analyst_changes: list[dict[str, Any]] = Field(default_factory=list)
     html: str | None = None

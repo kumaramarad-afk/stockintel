@@ -38,7 +38,7 @@ export function Header() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`transition hover:text-slate-100 ${ready && (pathname === item.href || (item.href === "/research" && pathname === "/")) ? "text-slate-100" : ""}`}
+                className={`transition hover:text-slate-100 ${ready && (pathname === item.href || (item.href === "/research" && pathname.startsWith("/research"))) ? "text-slate-100" : ""}`}
               >
                 {item.label}
               </Link>

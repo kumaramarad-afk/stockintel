@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     alpha_vantage_api_key: str = ""
     anthropic_model: str = "claude-sonnet-4-5-20250929"
     finnhub_api_key: str = ""
+    newsapi_api_key: str = ""
     reddit_client_id: str = ""
     reddit_client_secret: str = ""
     reddit_user_agent: str = "StockIntel/1.0"

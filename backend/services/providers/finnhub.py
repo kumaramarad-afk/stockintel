@@ -20,7 +20,7 @@ def _get(path: str, params: dict[str, Any]) -> Any | None:
         return None
 
     def _fetch() -> Any | None:
-        query = {**params, "token": token}
+        query = {key: value for key, value in {**params, "token": token}.items() if value not in (None, "")}
         try:
             with httpx.Client(timeout=20.0) as client:
                 response = client.get(f"{BASE}{path}", params=query)
@@ -55,6 +55,7 @@ def price_target(ticker: str) -> dict[str, Any] | None:
         "average_target": to_float(payload.get("targetMean") or payload.get("targetMedian")),
         "high_target": to_float(payload.get("targetHigh")),
         "low_target": to_float(payload.get("targetLow")),
+        "last_updated": payload.get("lastUpdated"),
     }
 
 
@@ -88,6 +89,159 @@ def upgrades(ticker: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]], d
             elif "up" in action or "init" in action:
                 up.append(item)
     return up[:8], down[:8], top
+
+
+def _grade_when(row: dict[str, Any]) -> datetime | None:
+    ts = row.get("gradeTime")
+    if isinstance(ts, (int, float)):
+        epoch = ts / 1000 if ts > 1e12 else ts
+        return datetime.fromtimestamp(epoch, tz=timezone.utc)
+    return None
+
+
+def _row_target(row: dict[str, Any], *keys: str) -> float | None:
+    for key in keys:
+        value = to_float(row.get(key))
+        if value is not None:
+            return value
+    return None
+
+
+def rating_target_changes(days: int = 30, symbols: list[str] | None = None, limit: int = 20) -> list[dict[str, Any]]:
+    end = datetime.now(timezone.utc).date()
+    start = end - timedelta(days=days)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    rows = _get("/stock/upgrade-downgrade", {"from": start.isoformat(), "to": end.isoformat()})
+    if not isinstance(rows, list):
+        rows = []
+    elif not rows:
+        for symbol in symbols or []:
+            payload = _get("/stock/upgrade-downgrade", {"symbol": symbol})
+            if isinstance(payload, list):
+                rows.extend(payload)
+    items: list[dict[str, Any]] = []
+    seen: set[tuple[Any, ...]] = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        when = _grade_when(row)
+        if when is not None and when < cutoff:
+            continue
+        ticker = str(row.get("symbol") or "").upper().strip()
+        if not ticker:
+            continue
+        old_rating = str(row.get("fromGrade") or "").strip() or "n/a"
+        new_rating = str(row.get("toGrade") or row.get("action") or "").strip() or "n/a"
+        old_target = _row_target(row, "fromPriceTarget", "priceTargetFrom", "fromPT", "oldPriceTarget")
+        new_target = _row_target(row, "toPriceTarget", "priceTargetTo", "toPT", "priceTarget", "newPriceTarget")
+        key = (ticker, row.get("company"), old_rating, new_rating, iso(when))
+        if key in seen:
+            continue
+        seen.add(key)
+        items.append(
+            {
+                "ticker": ticker,
+                "firm": row.get("company") or "Analyst desk",
+                "action": row.get("action"),
+                "old_rating": old_rating,
+                "new_rating": new_rating,
+                "old_target": old_target,
+                "new_target": new_target,
+                "date": iso(when) or start.isoformat(),
+            }
+        )
+    items.sort(key=lambda item: str(item.get("date") or ""), reverse=True)
+    missing = []
+    for item in items:
+        if item.get("new_target") is None and item["ticker"] not in missing:
+            missing.append(item["ticker"])
+    for ticker in missing[:10]:
+        target = price_target(ticker)
+        if not target or target.get("average_target") is None:
+            continue
+        last_updated = str(target.get("last_updated") or "")
+        recent = True
+        if last_updated:
+            try:
+                stamp = datetime.fromisoformat(last_updated.replace("Z", "+00:00"))
+                if stamp.tzinfo is None:
+                    stamp = stamp.replace(tzinfo=timezone.utc)
+                recent = stamp >= cutoff
+            except Exception:
+                recent = True
+        if not recent:
+            continue
+        for item in items:
+            if item["ticker"] == ticker and item.get("new_target") is None:
+                item["new_target"] = target["average_target"]
+    return items[:limit]
+
+
+def _consensus_label(row: dict[str, Any]) -> str:
+    buy = (to_int(row.get("strongBuy")) or 0) + (to_int(row.get("buy")) or 0)
+    hold = to_int(row.get("hold")) or 0
+    sell = (to_int(row.get("sell")) or 0) + (to_int(row.get("strongSell")) or 0)
+    total = buy + hold + sell
+    if not total:
+        return "n/a"
+    if buy / total >= 0.6:
+        return "Buy"
+    if sell / total >= 0.4:
+        return "Sell"
+    return "Hold"
+
+
+def recommendation_shifts(symbols: list[str], limit: int = 12) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    for symbol in symbols:
+        rows = _get("/stock/recommendation", {"symbol": symbol})
+        if not isinstance(rows, list) or len(rows) < 2:
+            continue
+        latest, prior = rows[0], rows[1]
+        old_rating = _consensus_label(prior)
+        new_rating = _consensus_label(latest)
+        if old_rating == new_rating:
+            continue
+        items.append(
+            {
+                "ticker": symbol.upper(),
+                "firm": "Finnhub consensus",
+                "action": "revise",
+                "old_rating": old_rating,
+                "new_rating": new_rating,
+                "old_target": None,
+                "new_target": None,
+                "date": str(latest.get("period") or ""),
+            }
+        )
+        if len(items) >= limit:
+            break
+    return items
+
+
+def general_news(limit: int = 15) -> list[dict[str, Any]]:
+    rows = _get("/news", {"category": "general"})
+    if not isinstance(rows, list):
+        return []
+    items: list[dict[str, Any]] = []
+    for row in rows[: max(limit, 12)]:
+        if not isinstance(row, dict):
+            continue
+        ts = row.get("datetime")
+        published = iso(datetime.fromtimestamp(ts, tz=timezone.utc)) if isinstance(ts, (int, float)) else None
+        related = [part.strip().upper() for part in str(row.get("related") or "").split(",") if part.strip()]
+        summary = str(row.get("summary") or "").strip()
+        items.append(
+            {
+                "ticker": related[0] if related else "MARKET",
+                "headline": row.get("headline"),
+                "summary": summary,
+                "source": row.get("source") or "Finnhub",
+                "url": row.get("url"),
+                "published_at": published,
+            }
+        )
+    return items
 
 
 def company_news(ticker: str) -> list[dict[str, Any]]:

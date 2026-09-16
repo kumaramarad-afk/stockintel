@@ -67,3 +67,65 @@ def summarize(ticker: str, snapshot: dict[str, Any]) -> dict[str, Any] | None:
         "key_risks": paragraphs[1] if len(paragraphs) > 1 else [],
         "upcoming_catalysts": paragraphs[2] if len(paragraphs) > 2 else [],
     }
+
+
+def reasoning_sections(ticker: str, snapshot: dict[str, Any]) -> dict[str, Any] | None:
+    api_key = anthropic_key()
+    if not api_key:
+        return None
+    as_of = snapshot.get("as_of") or ""
+    prompt = (
+        f"You are writing an institutional research note for a non-professional investor about {ticker}.\n"
+        "Explain what the stock costs, the strongest bull and bear cases, and what would have to be true "
+        "for the current price — NOT whether to buy or sell.\n"
+        "Never use the words buy, sell, hold, recommend, or invest. Never give a verdict.\n"
+        "Use only the JSON snapshot. Do not invent numbers, products, lawsuits, or deals that are not present.\n"
+        "Write plain English. Be specific with numbers from the snapshot. Cite sources informally when present.\n\n"
+        f"```json\n{json.dumps(snapshot, default=str)[:14000]}\n```\n\n"
+        "Return ONLY JSON with these keys:\n"
+        '  "one_line": one sentence naming the central tension/disagreement (not a company summary)\n'
+        '  "what_youre_paying": markdown for section 1 — include a markdown table with trailing P/E, '
+        "forward P/E, historical median P/E (and window), gap, trailing EPS, gross margin; then 2–3 sentences "
+        "translating the premium; then fair-value models and the analyst high-to-low target range as one line. "
+        "If median P/E is missing, say so plainly and compare to available multiples instead.\n"
+        '  "bulls": markdown with 4–5 bold lead-ins and short mechanism explanations (why it matters financially)\n'
+        '  "bears": markdown with 4–6 specific risks — mechanism and sizing where numbers exist; '
+        "avoid vague 'valuation risk'\n"
+        '  "assumptions": markdown numbered list of 4–6 assumptions embedded in the current multiple, '
+        "framed as 'For the stock to justify [current P/E] instead of [median], roughly all of the following "
+        "need to hold:' and end with asking the reader how many they would bet on individually and what "
+        "happens if 1–2 break\n"
+        '  "watch": markdown bullet list of 4–6 checkable indicators (metrics, dates, filings)\n'
+        "Do not include sections titled 'What this note does not do' or the disclaimer — those are added later.\n"
+        f"Figures in the snapshot are as of {as_of}."
+    )
+    try:
+        client = Anthropic(api_key=api_key)
+        message = client.messages.create(
+            model=settings.anthropic_model,
+            max_tokens=3500,
+            messages=[{"role": "user", "content": prompt}],
+        )
+    except Exception:
+        logger.exception("Reasoning report failed for %s", ticker)
+        return None
+    parts = [block.text for block in message.content if getattr(block, "type", None) == "text"]
+    text = "\n\n".join(part.strip() for part in parts if part and part.strip())
+    if not text:
+        return None
+    match = re.search(r"\{[\s\S]*\}", text)
+    if not match:
+        return None
+    try:
+        payload = json.loads(match.group(0))
+    except json.JSONDecodeError:
+        logger.warning("Reasoning report JSON parse failed for %s", ticker)
+        return None
+    return {
+        "one_line": scrub_copy(str(payload.get("one_line") or "")),
+        "what_youre_paying": scrub_copy(str(payload.get("what_youre_paying") or "")),
+        "bulls": scrub_copy(str(payload.get("bulls") or "")),
+        "bears": scrub_copy(str(payload.get("bears") or "")),
+        "assumptions": scrub_copy(str(payload.get("assumptions") or "")),
+        "watch": scrub_copy(str(payload.get("watch") or "")),
+    }

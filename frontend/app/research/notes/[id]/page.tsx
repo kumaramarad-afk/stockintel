@@ -4,8 +4,11 @@ import { apiGetSafe } from "@/lib/api";
 import { formatDate, formatPrice } from "@/lib/format";
 import type { ResearchNote } from "@/lib/types";
 
-export default async function ResearchDetailPage({ params }: { params: { id: string } }) {
-  const note = await apiGetSafe<ResearchNote | null>(`/api/v1/research/${params.id}`, null);
+type PageProps = { params: Promise<{ id: string }> | { id: string } };
+
+export default async function ResearchNotePage({ params }: PageProps) {
+  const resolved = params instanceof Promise ? await params : params;
+  const note = await apiGetSafe<ResearchNote | null>(`/api/v1/research/${resolved.id}`, null);
   if (!note) notFound();
 
   return (

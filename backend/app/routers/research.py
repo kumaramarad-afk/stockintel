@@ -1,20 +1,31 @@
+import logging
 import re
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from app.config import settings
 from app.deps import db_session, optional_user
 from app.models import ResearchNote, Stock, User
 from app.schemas.research import (
+    CachedTickerItem,
+    CachedTickerListResponse,
     ResearchGenerateRequest,
     ResearchGenerateResponse,
     ResearchNoteCreate,
     ResearchNoteRead,
     ResearchSectionResponse,
+    ReasoningReportResponse,
 )
 from services.alerts import notify_from_report
 from services.paywall import apply_paywall, resolve_access
+from services.report_cache import (
+    POPULAR_TICKERS,
+    list_cached_tickers,
+    public_report_payload,
+    refresh_popular_reports,
+)
 from services.stock_service import (
     SECTION_HANDLERS,
     MissingApiKeyError,
@@ -25,6 +36,7 @@ from services.stock_service import (
 )
 
 router = APIRouter(prefix="/research", tags=["research"])
+logger = logging.getLogger(__name__)
 TICKER_RE = re.compile(r"^[A-Z][A-Z0-9.\-]{0,15}$")
 
 
@@ -39,6 +51,56 @@ def _normalize_ticker(ticker: str) -> str:
     if not TICKER_RE.fullmatch(symbol):
         raise HTTPException(status_code=422, detail="Enter a valid ticker symbol, such as AAPL or BRK.B")
     return symbol
+
+
+@router.get("/tickers", response_model=CachedTickerListResponse)
+def research_ticker_directory(db: Session = Depends(db_session)) -> CachedTickerListResponse:
+    rows = list_cached_tickers(db)
+    if not rows:
+        # Seed directory labels even before cache is warm so SEO pages can link.
+        rows = [{"ticker": symbol, "name": None, "one_line": None, "price": None, "as_of": None, "generated_at": None} for symbol in POPULAR_TICKERS]
+    return CachedTickerListResponse(
+        count=len(rows),
+        tickers=[CachedTickerItem.model_validate(row) for row in rows],
+    )
+
+
+@router.get("/public/{ticker}", response_model=ReasoningReportResponse)
+def research_public_report(
+    ticker: str,
+    db: Session = Depends(db_session),
+    user: User | None = Depends(optional_user),
+) -> ReasoningReportResponse:
+    symbol = _normalize_ticker(ticker)
+    try:
+        payload = public_report_payload(db, symbol, user)
+    except TickerNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except MissingApiKeyError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Public research report failed for %s", symbol)
+        raise HTTPException(status_code=502, detail="Failed to load research report.") from exc
+    # Public pages do not consume monthly report quota — day-gating controls depth.
+    access = resolve_access(user, symbol, db, consume=False)
+    payload["access"] = access
+    return ReasoningReportResponse.model_validate(payload)
+
+
+@router.post("/admin/refresh-cache")
+def refresh_report_cache(
+    api_key: str | None = Query(default=None),
+    x_internal_key: str | None = Header(default=None, alias="X-Internal-Key"),
+    limit: int | None = Query(default=None, ge=1, le=50),
+) -> dict:
+    expected = settings.internal_api_key
+    if not expected:
+        raise HTTPException(status_code=503, detail="Internal API key is not configured")
+    provided = api_key or x_internal_key
+    if provided != expected:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    symbols = POPULAR_TICKERS[:limit] if limit else POPULAR_TICKERS
+    return refresh_popular_reports(symbols)
 
 
 @router.get("", response_model=list[ResearchNoteRead])
@@ -97,6 +159,16 @@ def research_report_section(
         result["data"] = apply_paywall(name, raw, access["entitlement"])
     result["access"] = access
     return ResearchSectionResponse.model_validate(result)
+
+
+@router.get("/report-new/{ticker}", response_model=ReasoningReportResponse)
+def research_reasoning_report(
+    ticker: str,
+    db: Session = Depends(db_session),
+    user: User | None = Depends(optional_user),
+) -> ReasoningReportResponse:
+    """Alias for the public reasoning report (cache-backed)."""
+    return research_public_report(ticker, db, user)
 
 
 @router.get("/{note_id}", response_model=ResearchNoteRead)

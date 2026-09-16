@@ -9,6 +9,9 @@ export function Footer() {
           For educational and informational purposes only. Not financial advice.
         </p>
         <div className="flex flex-wrap gap-4">
+          <Link href="/research" className="hover:text-slate-100">
+            Research
+          </Link>
           <Link href="/contact" className="hover:text-slate-100">
             Contact
           </Link>

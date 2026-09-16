@@ -28,6 +28,10 @@ def finnhub_key() -> str:
     return settings.finnhub_api_key.strip()
 
 
+def newsapi_key() -> str:
+    return settings.newsapi_api_key.strip()
+
+
 def sec_user_agent() -> str:
     return settings.sec_user_agent.strip() or "StockIntel research@example.com"
 

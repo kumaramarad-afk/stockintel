@@ -1,5 +1,6 @@
 from copy import deepcopy
 from datetime import date, datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -10,7 +11,15 @@ from sqlalchemy import select
 from app.database import SessionLocal
 from app.models import NewsletterPick, User
 from main import app
-from services.paywall import PLACEHOLDER
+from services.newsletter_service import (
+    business_days_elapsed,
+    compile_email_html,
+    newsletter_access,
+    recipient_emails,
+    _distinct_summary,
+)
+from services.paywall import PLACEHOLDER, normalize_email
+from services.providers.newsapi import extract_ticker, _two_sentences
 
 client = TestClient(app)
 
@@ -66,6 +75,194 @@ def _insert_pick(ticker: str = "NVDA", pick_date: date | None = None) -> Newslet
         db.close()
 
 
+def test_compile_email_html_leads_with_news_and_ratings() -> None:
+    pick = SimpleNamespace(
+        pick_date=date(2026, 9, 13),
+        ticker="NVDA",
+        reason="Institutional flow and coverage revisions clustered around this name.",
+        analyst_upgrades=4,
+        institutional_buying=120.5,
+        sentiment="bullish",
+    )
+    html = compile_email_html(
+        pick,
+        [],
+        [],
+        {"fed_event": "No scheduled Fed event on file"},
+        news_items=[
+            {
+                "ticker": "AAPL",
+                "headline": "Apple supplier news hits the tape",
+                "summary": "A supplier update moved large-cap tech. Traders watched the follow-through.",
+                "source": "Reuters",
+                "url": "https://example.com/aapl-news",
+            }
+        ],
+        analyst_changes=[
+            {
+                "ticker": "MSFT",
+                "firm": "Goldman Sachs",
+                "old_rating": "Neutral",
+                "new_rating": "Buy",
+                "old_target": 400,
+                "new_target": 450,
+                "date": "2026-09-01T00:00:00+00:00",
+            }
+        ],
+    )
+    assert html.index("1. NEWS") < html.index("2. ANALYST RATINGS") < html.index("3. Tape alerts")
+    assert html.index("3. Tape alerts") < html.index("9. Recent featured names")
+    assert "AAPL" in html
+    assert "Reuters" in html
+    assert "https://example.com/aapl-news" in html
+    assert "Neutral" in html and "Buy" in html
+    assert "$400.00" in html and "$450.00" in html
+
+
+def test_newsapi_ticker_and_summary_helpers() -> None:
+    assert extract_ticker("NVIDIA ($NVDA) climbs after data-center update") == "NVDA"
+    assert extract_ticker("Broad market futures are mixed before the open") == "MARKET"
+    summary = _two_sentences("First sentence. Second sentence. Third should drop.")
+    assert summary == "First sentence. Second sentence."
+
+
+def test_news_summary_does_not_repeat_headline() -> None:
+    headline = "Oil prices jump more than 2% after new strikes on Saudi, Strait of Hormuz - Reuters"
+    duplicate = "Oil prices jump more than 2% after new strikes on Saudi, Strait of Hormuz Reuters"
+    assert _distinct_summary(headline, duplicate, "Reuters") == ""
+    extra = _distinct_summary(
+        headline,
+        f"{duplicate}. Traders watched energy shares into the close.",
+        "Reuters",
+    )
+    assert extra == "Traders watched energy shares into the close."
+    pick = SimpleNamespace(
+        pick_date=date(2026, 9, 13),
+        ticker="NVDA",
+        reason="Desk note.",
+        analyst_upgrades=0,
+        institutional_buying=0,
+        sentiment="mixed",
+    )
+    html = compile_email_html(
+        pick,
+        [],
+        [],
+        {"fed_event": "n/a"},
+        news_items=[
+            {
+                "ticker": "MARKET",
+                "headline": headline,
+                "summary": duplicate,
+                "source": "Reuters",
+                "url": "https://example.com/oil",
+            }
+        ],
+    )
+    assert html.count("Oil prices jump more than 2%") == 1
+    assert "Strait of Hormuz - Reuters" not in html
+    assert "Reuters · " in html
+
+
+def test_business_days_count_weekdays_only() -> None:
+    monday = date(2026, 9, 7)
+    assert business_days_elapsed(monday, monday) == 1
+    assert business_days_elapsed(monday, date(2026, 9, 11)) == 5
+    assert business_days_elapsed(monday, date(2026, 9, 13)) == 5
+    assert business_days_elapsed(monday, date(2026, 9, 14)) == 6
+    assert business_days_elapsed(date(2026, 9, 12), date(2026, 9, 14)) == 1
+
+
+def test_newsletter_access_follows_trial_windows() -> None:
+    created = datetime(2026, 9, 7, tzinfo=timezone.utc)
+    free = SimpleNamespace(
+        is_active=True,
+        plan="free",
+        email="trial@example.com",
+        newsletter_email_preference="daily",
+        created_at=created,
+    )
+    premium = SimpleNamespace(**{**free.__dict__, "plan": "premium"})
+    unsubscribed = SimpleNamespace(**{**free.__dict__, "newsletter_email_preference": "off"})
+    assert newsletter_access(free, None, date(2026, 9, 11)) == "full"
+    assert newsletter_access(free, None, date(2026, 9, 14)) == "preview"
+    assert newsletter_access(free, None, date(2026, 9, 25)) == "preview"
+    assert newsletter_access(free, None, date(2026, 9, 28)) == "skip"
+    assert newsletter_access(premium, None, date(2026, 9, 28)) == "full"
+    assert newsletter_access(unsubscribed, None, date(2026, 9, 8)) == "skip"
+
+
+def test_recipient_emails_stop_after_trial_unless_premium() -> None:
+    _, user = _register()
+    db = SessionLocal()
+    try:
+        account = db.scalar(select(User).where(User.email == user["email"]))
+        assert account is not None
+        account.created_at = datetime(2026, 8, 1, tzinfo=timezone.utc)
+        db.add(account)
+        db.commit()
+        with patch("services.newsletter_service.utc_today", return_value=date(2026, 9, 14)):
+            skipped = {row[0]: row[2] for row in recipient_emails(db)}
+        assert normalize_email(user["email"]) not in skipped
+        account.created_at = datetime(2026, 9, 7, tzinfo=timezone.utc)
+        db.add(account)
+        db.commit()
+        with patch("services.newsletter_service.utc_today", return_value=date(2026, 9, 14)):
+            preview = {row[0]: row[2] for row in recipient_emails(db)}
+        assert preview[normalize_email(user["email"])] == "preview"
+        account.plan = "premium"
+        db.add(account)
+        db.commit()
+        with patch("services.newsletter_service.utc_today", return_value=date(2026, 9, 14)):
+            paid = {row[0]: row[2] for row in recipient_emails(db)}
+        assert paid[normalize_email(user["email"])] == "full"
+    finally:
+        db.close()
+
+
+def test_preview_html_shows_first_item_and_upgrade_gate() -> None:
+    pick = SimpleNamespace(
+        pick_date=date(2026, 9, 14),
+        ticker="NVDA",
+        reason="Desk note.",
+        analyst_upgrades=1,
+        institutional_buying=10,
+        sentiment="mixed",
+    )
+    html = compile_email_html(
+        pick,
+        [],
+        [],
+        {"fed_event": "n/a"},
+        news_items=[
+            {
+                "ticker": "AAPL",
+                "headline": "Visible headline",
+                "summary": "First unique summary sentence.",
+                "source": "Reuters",
+                "url": "https://example.com/one",
+            },
+            {
+                "ticker": "MSFT",
+                "headline": "Locked headline",
+                "summary": "Second unique summary sentence.",
+                "source": "Bloomberg",
+                "url": "https://example.com/two",
+            },
+        ],
+        preview=True,
+    )
+    news_at = html.index("1. NEWS")
+    locked_at = html.index('class="locked-wrap"')
+    visible_at = html.index("Visible headline")
+    hidden_at = html.index("Locked headline")
+    assert visible_at > news_at
+    assert locked_at > visible_at
+    assert hidden_at > locked_at
+    assert "Upgrade to Premium" in html
+    assert "Limited preview" in html
+
+
 def test_premium_gets_full_unlimited_research() -> None:
     token, _ = _register()
     headers = {"Authorization": f"Bearer {token}"}
@@ -100,7 +297,7 @@ def test_newsletter_archive_links_to_research() -> None:
     assert response.status_code == 200, response.text
     rows = response.json()
     assert rows[0]["ticker"] == "NVDA"
-    assert rows[0]["research_path"] == "/research?ticker=NVDA"
+    assert rows[0]["research_path"] == "/research/NVDA"
 
 
 def test_unsubscribe_keeps_research_access() -> None:

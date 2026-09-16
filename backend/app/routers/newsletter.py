@@ -17,7 +17,9 @@ from services.newsletter_service import (
     emails_received,
     generate_daily_newsletter,
     get_pick,
+    newsletter_access,
     today_payload,
+    trial_business_day,
 )
 from services.paywall import effective_plan, user_has_premium
 
@@ -34,13 +36,16 @@ def newsletter_status(user: User = Depends(current_user), db: Session = Depends(
     status = user.newsletter_subscription_status or "none"
     if user_has_premium(user, db) and status == "none":
         status = "active"
+    access = newsletter_access(user, db)
     return NewsletterStatusRead(
         tier=effective_plan(user, db),
         status=status,
-        newsletter_enabled=(user.newsletter_email_preference or "daily") == "daily" and user_has_premium(user, db),
+        newsletter_enabled=access in {"full", "preview"},
         subscribed_at=user.newsletter_subscribed_at or user.subscribed_at,
         newsletter_emails_received=emails_received(db, user.id),
         email_preference=user.newsletter_email_preference or "daily",
+        newsletter_access=access if access != "skip" else "none",
+        trial_business_day=trial_business_day(user),
     )
 
 
@@ -101,7 +106,7 @@ def newsletter_archive_date(
         ticker=pick.ticker,
         reason=pick.reason,
         sentiment=pick.sentiment,
-        research_path=f"/research?ticker={pick.ticker.upper()}",
+        research_path=f"/research/{pick.ticker.upper()}",
         issue_id=pick.issue_id,
         full_access=True,
         html=html,
@@ -114,7 +119,7 @@ def newsletter_today(
     user: User | None = Depends(optional_user),
 ) -> NewsletterTodayRead:
     full = user_has_premium(user, db) if user is not None else False
-    return NewsletterTodayRead.model_validate(today_payload(db, full))
+    return NewsletterTodayRead.model_validate(today_payload(db, full, user))
 
 
 @router.post("/admin/generate")

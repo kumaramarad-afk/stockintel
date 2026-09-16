@@ -88,3 +88,37 @@ class ResearchSectionResponse(BaseModel):
     error: str | None = None
     data: dict | None = None
     access: dict | None = None
+
+
+class ReasoningReportResponse(BaseModel):
+    ticker: str
+    name: str | None = None
+    price: float | None = None
+    as_of: str | None = None
+    one_line: str | None = None
+    markdown: str | None = None
+    sections: dict | None = None
+    blurred_sections: dict | None = None
+    valuation: dict | None = None
+    locked_sections: list[str] = Field(default_factory=list)
+    view_access: str | None = None
+    available: bool = True
+    error: str | None = None
+    generated_at: str | None = None
+    preview: bool = False
+    cached: bool = False
+    access: dict | None = None
+
+
+class CachedTickerItem(BaseModel):
+    ticker: str
+    name: str | None = None
+    one_line: str | None = None
+    price: float | None = None
+    as_of: str | None = None
+    generated_at: str | None = None
+
+
+class CachedTickerListResponse(BaseModel):
+    count: int
+    tickers: list[CachedTickerItem]
