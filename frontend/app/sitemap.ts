@@ -19,7 +19,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const directory = await apiGetSafe<DirectoryResponse>("/api/v1/research/tickers", {
     tickers: FALLBACK.map((ticker) => ({ ticker })),
   });
-  const tickers = directory.tickers.length ? directory.tickers : FALLBACK.map((ticker) => ({ ticker }));
+  const tickers: DirectoryResponse["tickers"] = directory.tickers.length
+    ? directory.tickers
+    : FALLBACK.map((ticker) => ({ ticker }));
   const now = new Date();
   return [
     { url: `${base}/`, lastModified: now, changeFrequency: "weekly", priority: 1 },

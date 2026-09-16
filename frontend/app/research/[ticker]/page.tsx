@@ -60,7 +60,7 @@ export default async function ResearchTickerPage({ params }: PageProps) {
   const { ticker: raw } = await resolveParams(params);
   const ticker = raw.trim().toUpperCase();
   if (!TICKER_RE.test(ticker)) notFound();
-  const report = await apiGetSafe<PublicReport | null>(`/api/v1/research/public/${encodeURIComponent(ticker)}`, {
+  const fallback: PublicReport = {
     ticker,
     name: ticker,
     one_line: `Loading the research note for ${ticker}…`,
@@ -73,6 +73,7 @@ export default async function ResearchTickerPage({ params }: PageProps) {
     locked_sections: ["bulls", "bears", "assumptions", "watch"],
     preview: true,
     available: true,
-  });
+  };
+  const report = (await apiGetSafe<PublicReport | null>(`/api/v1/research/public/${encodeURIComponent(ticker)}`, fallback)) ?? fallback;
   return <PublicReportLoader ticker={ticker} initial={report} />;
 }
