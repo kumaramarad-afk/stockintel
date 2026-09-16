@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { ResearchHero } from "@/components/research/ResearchHero";
 import { useAuth } from "@/components/layout/AuthProvider";
+import { apiUrl } from "@/lib/api";
 import { hasNewsletter, isPaidPlan } from "@/lib/plans";
 
 /** Search entry that routes to public /research/[TICKER] pages. */
@@ -35,9 +36,25 @@ export function ResearchAnalyzer() {
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const symbol = ticker.trim().toUpperCase();
-    if (!symbol) return;
-    load(symbol);
+    const raw = ticker.trim();
+    if (!raw) return;
+    void (async () => {
+      try {
+        const response = await fetch(apiUrl(`/api/v1/research/resolve?q=${encodeURIComponent(raw)}`), {
+          cache: "no-store",
+        });
+        if (response.ok) {
+          const payload = (await response.json()) as { ticker?: string };
+          if (payload.ticker) {
+            load(payload.ticker);
+            return;
+          }
+        }
+      } catch {
+        // Fall through to raw symbol.
+      }
+      load(raw.toUpperCase());
+    })();
   }
 
   const remaining = Math.max(0, user?.reports_remaining ?? 5);

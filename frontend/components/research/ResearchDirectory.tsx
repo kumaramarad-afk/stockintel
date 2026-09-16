@@ -40,7 +40,7 @@ export function ResearchDirectory({
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search tickers…"
+          placeholder="Search by ticker or company…"
           className="w-full max-w-md rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-slate-100 outline-none ring-emerald-500/40 placeholder:text-slate-500 focus:ring"
         />
       </div>

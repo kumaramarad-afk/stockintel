@@ -14,6 +14,7 @@ from app.database import SessionLocal
 from app.models import CachedReport
 from services.reasoning_report import generate_reasoning_report
 from services.stock_service import TickerNotFoundError
+from services.ticker_catalog import display_name
 
 logger = logging.getLogger(__name__)
 
@@ -115,18 +116,37 @@ def get_cached_report(db: Session, ticker: str) -> CachedReport | None:
 
 
 def list_cached_tickers(db: Session) -> list[dict[str, Any]]:
+    """Merge the popular launch set with any cached rows so the directory stays complete."""
     rows = db.scalars(select(CachedReport).order_by(CachedReport.ticker.asc())).all()
-    return [
-        {
+    by_ticker = {
+        row.ticker: {
             "ticker": row.ticker,
-            "name": row.name,
+            "name": row.name or display_name(row.ticker),
             "one_line": row.one_line,
             "price": row.price,
             "as_of": row.as_of,
             "generated_at": row.generated_at.isoformat() if row.generated_at else None,
         }
         for row in rows
-    ]
+    }
+    merged: list[dict[str, Any]] = []
+    for symbol in POPULAR_TICKERS:
+        if symbol in by_ticker:
+            merged.append(by_ticker.pop(symbol))
+        else:
+            merged.append(
+                {
+                    "ticker": symbol,
+                    "name": display_name(symbol),
+                    "one_line": None,
+                    "price": None,
+                    "as_of": None,
+                    "generated_at": None,
+                }
+            )
+    # Any extra cached tickers outside the popular set.
+    merged.extend(sorted(by_ticker.values(), key=lambda item: item["ticker"]))
+    return merged
 
 
 def upsert_cached_report(db: Session, payload: dict[str, Any], *, ttl_days: int = CACHE_DAYS) -> CachedReport:

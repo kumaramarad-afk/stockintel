@@ -4,6 +4,7 @@ Usage (from backend/):
   set PYTHONPATH=.
   py -3 scripts/generate_cached_reports.py
   py -3 scripts/generate_cached_reports.py --limit 5
+  py -3 scripts/generate_cached_reports.py --tickers GOOGL,AMZN,TSLA
 """
 
 from __future__ import annotations
@@ -26,10 +27,16 @@ from services.report_cache import POPULAR_TICKERS, refresh_popular_reports  # no
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate cached research reports")
     parser.add_argument("--limit", type=int, default=None, help="Only first N tickers")
+    parser.add_argument("--tickers", type=str, default=None, help="Comma-separated ticker list")
     parser.add_argument("--workers", type=int, default=2, help="Parallel workers")
     args = parser.parse_args()
     ensure_user_schema()
-    symbols = POPULAR_TICKERS[: args.limit] if args.limit else POPULAR_TICKERS
+    if args.tickers:
+        symbols = [item.strip().upper() for item in args.tickers.split(",") if item.strip()]
+    elif args.limit:
+        symbols = POPULAR_TICKERS[: args.limit]
+    else:
+        symbols = list(POPULAR_TICKERS)
     print(f"Generating {len(symbols)} reports with {args.workers} workers…")
     result = refresh_popular_reports(symbols, max_workers=args.workers)
     print(result)

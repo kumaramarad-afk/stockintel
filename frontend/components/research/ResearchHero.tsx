@@ -87,11 +87,11 @@ export function ResearchHero({
               ref={inputRef}
               id="ticker"
               value={ticker}
-              onChange={(event) => setTicker(event.target.value.toUpperCase())}
-              placeholder="Search a ticker — AAPL, NVDA, MSFT"
+              onChange={(event) => setTicker(event.target.value)}
+              placeholder="Search ticker or company — AAPL, Apple, NVIDIA"
               autoComplete="off"
               spellCheck={false}
-              className="min-w-0 flex-1 bg-transparent px-2 py-3 text-base font-medium tracking-[0.12em] text-slate-100 placeholder-slate-500 outline-none sm:text-lg"
+              className="min-w-0 flex-1 bg-transparent px-2 py-3 text-base font-medium text-slate-100 placeholder-slate-500 outline-none sm:text-lg"
             />
             <kbd className="hidden rounded-md border border-slate-700/70 bg-slate-950/80 px-2 py-1 font-mono text-[10px] text-slate-400 sm:inline">
               {isMac ? "⌘K" : "/"}

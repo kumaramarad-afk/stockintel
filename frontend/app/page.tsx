@@ -28,11 +28,10 @@ export default async function HomePage() {
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(16,185,129,0.18),_transparent_55%)]" />
       <div className="relative mx-auto flex min-h-[70vh] max-w-3xl flex-col justify-center gap-10 py-10">
         <div className="space-y-4 text-center">
-          <p className="text-xs font-semibold tracking-[0.22em] text-emerald-400">GETSTOCKREPORT</p>
           <h1 className="text-4xl font-semibold tracking-tight text-slate-50 sm:text-5xl">
-            Every stock research site ends with a score. We end with the reasoning.
+            Stock research that shows the reasoning, not a verdict
           </h1>
-          <p className="text-lg text-slate-400">Bull case, bear case, what has to be true — you decide.</p>
+          <p className="text-lg text-slate-400">Bull case, bear case, what has to be true — you decide</p>
         </div>
 
         <HomeSearch />

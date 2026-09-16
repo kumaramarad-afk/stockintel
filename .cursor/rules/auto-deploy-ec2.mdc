@@ -1,0 +1,44 @@
+---
+description: Keep local, git, and EC2 production in sync via automatic deploy
+alwaysApply: true
+---
+
+# Auto-deploy — local / git / EC2 stay in sync
+
+After shipping code changes for GetStockReport, **do not leave production behind**.
+
+## Default workflow
+
+1. Finish the code change locally.
+2. Commit when the user asks (or when they explicitly request deploy/ship/push-all).
+3. **Push to `origin/main`.**
+4. **Automatically deploy to the EC2 instance** so live matches git — do not wait to be asked.
+
+Treat “done” as: local working tree (for that work) == `origin/main` == EC2 `~/stockintel` on `main`, with PM2 frontend + backend online.
+
+## EC2 deploy (production)
+
+- Host: `ubuntu@13.234.68.89`
+- Key: `C:\Users\Jay\Downloads\Broker-key.pem`
+- App dir: `~/stockintel`
+- Prefer piping a bash script over SSH from PowerShell (`@'...'@ | ssh ... bash`); bash heredocs fail in PowerShell.
+
+On the server:
+
+1. `git fetch origin main && git reset --hard origin/main`
+2. Backend: `source venv/bin/activate`, `pip install -r requirements.txt` if deps changed, `pm2 restart backend --update-env`
+3. Frontend: stop apps if RAM is tight (~2GB box), `npm run build`, ensure standalone static copy (postbuild or `cp -r .next/static .next/standalone/.next/` and `public` → `.next/standalone/`), then `pm2 restart frontend --update-env`
+4. `pm2 save` and verify `curl` health + https://getstockreport.com
+
+Also see repo `deploy.sh` and `docs/private/GetStockReport-Specification.md` (confidential — do not publish).
+
+## Env reminders on deploy
+
+- Never commit `.env` / secrets.
+- `NEXT_PUBLIC_*` is bake-time — set on the server **before** `npm run build`.
+- `NEXT_PUBLIC_API_URL` / `API_PUBLIC_URL` must be `https://getstockreport.com` with **no** trailing `/api`.
+
+## Exceptions
+
+- Skip auto-deploy only for pure docs/rules, local-only experiments, or when the user says not to deploy.
+- If deploy fails (TS build, OOM, PM2), fix forward and redeploy until local/git/EC2 match again.

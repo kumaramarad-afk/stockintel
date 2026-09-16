@@ -26,6 +26,7 @@ from services.report_cache import (
     public_report_payload,
     refresh_popular_reports,
 )
+from services.ticker_catalog import display_name, resolve_query_to_ticker, search_tickers
 from services.stock_service import (
     SECTION_HANDLERS,
     MissingApiKeyError,
@@ -56,13 +57,44 @@ def _normalize_ticker(ticker: str) -> str:
 @router.get("/tickers", response_model=CachedTickerListResponse)
 def research_ticker_directory(db: Session = Depends(db_session)) -> CachedTickerListResponse:
     rows = list_cached_tickers(db)
-    if not rows:
-        # Seed directory labels even before cache is warm so SEO pages can link.
-        rows = [{"ticker": symbol, "name": None, "one_line": None, "price": None, "as_of": None, "generated_at": None} for symbol in POPULAR_TICKERS]
     return CachedTickerListResponse(
         count=len(rows),
         tickers=[CachedTickerItem.model_validate(row) for row in rows],
     )
+
+
+@router.get("/search", response_model=CachedTickerListResponse)
+def research_ticker_search(q: str = Query("", max_length=64), db: Session = Depends(db_session)) -> CachedTickerListResponse:
+    """Search popular + cached tickers by symbol or company name."""
+    directory = {row["ticker"]: row for row in list_cached_tickers(db)}
+    matches = search_tickers(q, limit=12)
+    rows = []
+    for match in matches:
+        cached = directory.get(match["ticker"], {})
+        rows.append(
+            {
+                "ticker": match["ticker"],
+                "name": cached.get("name") or match["name"],
+                "one_line": cached.get("one_line"),
+                "price": cached.get("price"),
+                "as_of": cached.get("as_of"),
+                "generated_at": cached.get("generated_at"),
+            }
+        )
+    return CachedTickerListResponse(count=len(rows), tickers=[CachedTickerItem.model_validate(row) for row in rows])
+
+
+@router.get("/resolve")
+def research_resolve_query(q: str = Query(..., min_length=1, max_length=64)) -> dict[str, str | None]:
+    """Resolve a ticker or company name to a canonical symbol for navigation."""
+    symbol = resolve_query_to_ticker(q)
+    if symbol:
+        return {"ticker": symbol, "name": display_name(symbol)}
+    # Allow raw ticker navigation for symbols outside the catalog.
+    candidate = q.strip().upper()
+    if TICKER_RE.fullmatch(candidate):
+        return {"ticker": candidate, "name": display_name(candidate)}
+    raise HTTPException(status_code=404, detail="No matching ticker or company name")
 
 
 @router.get("/public/{ticker}", response_model=ReasoningReportResponse)
