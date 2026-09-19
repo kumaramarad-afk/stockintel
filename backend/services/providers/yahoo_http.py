@@ -102,6 +102,71 @@ def spark_quote(symbol: str) -> dict[str, Any]:
     }
 
 
+_US_EXCHANGES = {
+    "NMS", "NGM", "NCM", "NAS", "NYQ", "NYS", "ASE", "PCX", "BTS", "YHD", "NYS",
+    "NYSE", "NASDAQ", "AMEX", "NYSEARCA", "BATS", "CBOE", "OTC", "PNK", "OQB", "OQX",
+}
+_US_EXCH_DISP = ("NASDAQ", "NYSE", "NYSE AMERICAN", "NYSE ARCA", "AMEX", "CBOE", "OTC", "BATS")
+
+
+def symbol_search(query: str, *, limit: int = 10) -> list[dict[str, str]]:
+    """Live Yahoo Finance search for US-listed equities (and common US ETFs)."""
+    needle = (query or "").strip()
+    if len(needle) < 1:
+        return []
+
+    def _fetch() -> list[dict[str, str]]:
+        payload = _get_json(
+            "https://query1.finance.yahoo.com/v1/finance/search",
+            {"q": needle, "quotesCount": max(limit * 3, 12), "newsCount": 0, "listsCount": 0},
+        )
+        if not payload:
+            payload = _get_json(
+                "https://query2.finance.yahoo.com/v1/finance/search",
+                {"q": needle, "quotesCount": max(limit * 3, 12), "newsCount": 0},
+            )
+        quotes = (payload or {}).get("quotes") if isinstance(payload, dict) else None
+        if not isinstance(quotes, list):
+            return []
+        hits: list[dict[str, str]] = []
+        seen: set[str] = set()
+        for row in quotes:
+            if not isinstance(row, dict):
+                continue
+            quote_type = str(row.get("quoteType") or row.get("typeDisp") or "").upper()
+            if quote_type not in {"EQUITY", "ETF"}:
+                continue
+            symbol = str(row.get("symbol") or "").upper().strip()
+            if not symbol or symbol in seen:
+                continue
+            if "=" in symbol or symbol.endswith("-USD") or ":" in symbol:
+                continue
+            # Prefer plain US tickers; allow BRK.B-style dots, drop most foreign suffixes.
+            if "." in symbol:
+                suffix = symbol.rsplit(".", 1)[-1]
+                if suffix not in {"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "N", "O", "P", "R", "S", "U", "V", "W", "Y"} and len(suffix) > 1:
+                    # Foreign listings like SNDK.TO / SNDK.BA
+                    continue
+            exch = str(row.get("exchange") or "").upper()
+            exch_disp = str(row.get("exchDisp") or "").upper()
+            us_like = (
+                exch in _US_EXCHANGES
+                or any(token in exch_disp for token in _US_EXCH_DISP)
+                or (not exch_disp and quote_type in {"EQUITY", "ETF"} and "." not in symbol)
+            )
+            if not us_like:
+                continue
+            name = str(row.get("longname") or row.get("shortname") or row.get("longName") or row.get("shortName") or symbol)
+            seen.add(symbol)
+            hits.append({"ticker": symbol, "company_name": name, "name": name})
+            if len(hits) >= limit:
+                break
+        return hits
+
+    return cached(f"yahoo:search:{needle.lower()}:{limit}", _fetch, ttl=300)
+
+
+
 def fetch_quote_summary(symbol: str) -> dict[str, Any]:
     modules = ",".join(
         [

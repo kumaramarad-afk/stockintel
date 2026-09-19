@@ -118,6 +118,29 @@ def issuer_title(ticker: str) -> str | None:
     return (row or {}).get("title")
 
 
+def search_company_tickers(query: str, *, limit: int = 10) -> list[dict[str, str]]:
+    """Substring search over the SEC company_tickers map (broad US issuer coverage)."""
+    needle = (query or "").strip().lower()
+    if len(needle) < 2:
+        return []
+    mapping = _cik_map()
+    scored: list[tuple[int, str, str]] = []
+    for ticker, meta in mapping.items():
+        title = str((meta or {}).get("title") or "")
+        title_l = title.lower()
+        ticker_u = ticker.upper()
+        if ticker_u.lower() == needle:
+            scored.append((0, ticker_u, title or ticker_u))
+        elif ticker_u.lower().startswith(needle):
+            scored.append((1, ticker_u, title or ticker_u))
+        elif title_l.startswith(needle):
+            scored.append((2, ticker_u, title or ticker_u))
+        elif needle in title_l:
+            scored.append((3, ticker_u, title or ticker_u))
+    scored.sort(key=lambda item: (item[0], item[1]))
+    return [{"ticker": t, "company_name": n, "name": n} for _, t, n in scored[:limit]]
+
+
 def _submissions(cik: str) -> dict[str, Any] | None:
     padded = cik.zfill(10)
 

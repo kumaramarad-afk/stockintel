@@ -347,6 +347,41 @@ def peers(ticker: str) -> list[str]:
     return [str(item) for item in rows if item and str(item).upper() != ticker.upper()][:12]
 
 
+def symbol_search(query: str, *, limit: int = 10) -> list[dict[str, str]]:
+    """Finnhub symbol lookup — US common stock / ETF when available."""
+    needle = (query or "").strip()
+    if len(needle) < 1:
+        return []
+    payload = _get("/search", {"q": needle})
+    if not isinstance(payload, dict):
+        return []
+    rows = payload.get("result")
+    if not isinstance(rows, list):
+        return []
+    hits: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        symbol = str(row.get("symbol") or "").upper().strip()
+        if not symbol or symbol in seen or "." in symbol and not symbol.replace(".", "").isalnum():
+            continue
+        # Finnhub includes many international symbols with exchange suffixes like AAPL.US
+        if symbol.endswith(".US"):
+            symbol = symbol[:-3]
+        if "." in symbol and len(symbol.split(".")[-1]) > 1:
+            continue
+        kind = str(row.get("type") or "").lower()
+        if kind and kind not in {"common stock", "etp", "etf", "adr", "equity"}:
+            continue
+        name = str(row.get("description") or symbol)
+        seen.add(symbol)
+        hits.append({"ticker": symbol, "company_name": name, "name": name})
+        if len(hits) >= limit:
+            break
+    return hits
+
+
 def metrics(ticker: str) -> dict[str, Any] | None:
     payload = _get("/stock/metric", {"symbol": ticker, "metric": "all"})
     metric = payload.get("metric") if isinstance(payload, dict) else None

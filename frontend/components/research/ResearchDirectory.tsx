@@ -57,7 +57,7 @@ export function ResearchDirectory({
           showButton={false}
           loadAllWhenEmpty
           debounceMs={300}
-          placeholder="Search by ticker or company…"
+          placeholder="Search any US stock — ticker or company…"
           onResultsChange={onResultsChange}
           className="max-w-md"
         />

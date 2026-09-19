@@ -11,7 +11,7 @@ type HomeSearchProps = {
 export function HomeSearch({
   className,
   buttonLabel = "Open report",
-  placeholder = "Search any ticker or company (Apple, AAPL, NVIDIA…)",
+  placeholder = "Search any US stock — ticker or company (Micron, SanDisk, AAPL…)",
 }: HomeSearchProps) {
   return (
     <SearchBox

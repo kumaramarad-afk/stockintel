@@ -180,6 +180,9 @@ NAME_ALIASES: dict[str, str] = {
     "square": "SQ",
     "shopify": "SHOP",
     "snowflake": "SNOW",
+    "micron": "MU",
+    "sandisk": "SNDK",
+    "san disk": "SNDK",
 }
 
 

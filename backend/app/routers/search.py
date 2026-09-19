@@ -1,4 +1,4 @@
-"""Public ticker / company-name search."""
+"""Public ticker / company-name search across US-listed symbols."""
 
 from __future__ import annotations
 
@@ -9,7 +9,8 @@ from sqlalchemy.orm import Session
 
 from app.deps import db_session
 from app.models import Stock
-from services.ticker_catalog import TICKER_NAMES, search_tickers
+from services.symbol_search import search_us_symbols
+from services.ticker_catalog import TICKER_NAMES
 
 router = APIRouter(prefix="/search", tags=["search"])
 
@@ -25,11 +26,12 @@ def search(
     limit: int = Query(10, ge=1, le=100),
     db: Session = Depends(db_session),
 ) -> list[SearchResult]:
-    """Search by ticker or company name (exact → prefix → substring), case-insensitive."""
+    """Search by ticker or company name across the popular catalog and live US markets."""
     needle = (q or "").strip()
     fetch_limit = max(limit, len(TICKER_NAMES)) if not needle else limit
 
-    ranked = search_tickers(needle, limit=100 if not needle else limit)
+    ranked = search_us_symbols(needle, limit=fetch_limit if not needle else max(limit, 12))
+
     db_names: dict[str, str] = {}
     try:
         rows = db.scalars(select(Stock).order_by(Stock.ticker.asc())).all()

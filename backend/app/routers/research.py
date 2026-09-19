@@ -26,6 +26,7 @@ from services.report_cache import (
     public_report_payload,
     refresh_popular_reports,
 )
+from services.symbol_search import search_us_symbols
 from services.ticker_catalog import display_name, resolve_query_to_ticker, search_tickers
 from services.stock_service import (
     SECTION_HANDLERS,
@@ -65,9 +66,9 @@ def research_ticker_directory(db: Session = Depends(db_session)) -> CachedTicker
 
 @router.get("/search", response_model=CachedTickerListResponse)
 def research_ticker_search(q: str = Query("", max_length=64), db: Session = Depends(db_session)) -> CachedTickerListResponse:
-    """Search popular + cached tickers by symbol or company name."""
+    """Search popular + live US tickers by symbol or company name."""
     directory = {row["ticker"]: row for row in list_cached_tickers(db)}
-    matches = search_tickers(q, limit=12)
+    matches = search_us_symbols(q, limit=12)
     rows = []
     for match in matches:
         cached = directory.get(match["ticker"], {})
@@ -88,8 +89,15 @@ def research_ticker_search(q: str = Query("", max_length=64), db: Session = Depe
 def research_resolve_query(q: str = Query(..., min_length=1, max_length=64)) -> dict[str, str | None]:
     """Resolve a ticker or company name to a canonical symbol for navigation."""
     symbol = resolve_query_to_ticker(q)
+    if not symbol:
+        hits = search_us_symbols(q, limit=1)
+        symbol = hits[0]["ticker"] if hits else None
     if symbol:
-        return {"ticker": symbol, "name": display_name(symbol)}
+        name = display_name(symbol)
+        if not name:
+            hits = search_us_symbols(symbol, limit=1)
+            name = hits[0].get("company_name") if hits else None
+        return {"ticker": symbol, "name": name}
     # Allow raw ticker navigation for symbols outside the catalog.
     candidate = q.strip().upper()
     if TICKER_RE.fullmatch(candidate):
