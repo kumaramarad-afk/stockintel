@@ -17,6 +17,10 @@ def _norm(row: dict[str, Any]) -> dict[str, str] | None:
     ticker = str(row.get("ticker") or "").upper().strip()
     if not ticker or not TICKER_RE.fullmatch(ticker):
         return None
+    # Keep dotted share classes only when we already know them (e.g. BRK.B).
+    # Foreign suffixes like EUCA.F / SNDK.TO must not leak in from secondary sources.
+    if "." in ticker and ticker not in TICKER_NAMES:
+        return None
     name = str(row.get("company_name") or row.get("name") or TICKER_NAMES.get(ticker) or ticker)
     return {"ticker": ticker, "company_name": name, "name": name}
 
