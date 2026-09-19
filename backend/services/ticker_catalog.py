@@ -183,6 +183,17 @@ NAME_ALIASES: dict[str, str] = {
 }
 
 
+# Yahoo / market data symbols when the public ticker differs (e.g. Block).
+MARKET_SYMBOL_ALIASES: dict[str, str] = {
+    "SQ": "XYZ",
+}
+
+
+def market_symbol(ticker: str) -> str:
+    symbol = ticker.strip().upper()
+    return MARKET_SYMBOL_ALIASES.get(symbol, symbol)
+
+
 def display_name(ticker: str) -> str | None:
     return TICKER_NAMES.get(ticker.strip().upper())
 

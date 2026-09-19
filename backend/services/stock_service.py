@@ -16,6 +16,7 @@ from services.language import (
 from services.numbers import clamp, pct_change, to_float
 from services.providers import alpha_vantage, capitol, claude, finnhub, reddit, sec_edgar, trends, yahoo
 from services.providers import yahoo_http
+from services.ticker_catalog import market_symbol
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +66,7 @@ def _label_headline(text: str | None) -> str:
 
 def _bundle(ticker: str) -> dict[str, Any]:
     try:
-        return yahoo.load_bundle(ticker)
+        return yahoo.load_bundle(market_symbol(ticker))
     except Exception as exc:
         raise TickerNotFoundError(str(exc) or f"No market data found for {ticker}.") from exc
 
