@@ -141,14 +141,20 @@ def symbol_search(query: str, *, limit: int = 10) -> list[dict[str, str]]:
                 continue
             if "=" in symbol or symbol.endswith("-USD") or ":" in symbol:
                 continue
+            exch = str(row.get("exchange") or "").upper()
+            exch_disp = str(row.get("exchDisp") or "").upper()
             # Prefer plain US tickers; allow BRK.B-style dots, drop most foreign suffixes.
             if "." in symbol:
                 suffix = symbol.rsplit(".", 1)[-1]
-                if suffix not in {"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "N", "O", "P", "R", "S", "U", "V", "W", "Y"} and len(suffix) > 1:
-                    # Foreign listings like SNDK.TO / SNDK.BA
+                # Allow share classes like BRK.B; drop foreign suffixes (.TO, .BA, .F, …).
+                if len(suffix) != 1 or not suffix.isalpha():
                     continue
-            exch = str(row.get("exchange") or "").upper()
-            exch_disp = str(row.get("exchDisp") or "").upper()
+                # Share-class symbols still need a US exchange signal.
+                if not (
+                    exch in _US_EXCHANGES
+                    or any(token in exch_disp for token in _US_EXCH_DISP)
+                ):
+                    continue
             us_like = (
                 exch in _US_EXCHANGES
                 or any(token in exch_disp for token in _US_EXCH_DISP)
