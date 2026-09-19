@@ -27,7 +27,7 @@ from services.report_cache import (
     refresh_popular_reports,
 )
 from services.symbol_search import search_us_symbols
-from services.ticker_catalog import display_name, resolve_query_to_ticker, search_tickers
+from services.ticker_catalog import display_name, resolve_query_to_ticker
 from services.stock_service import (
     SECTION_HANDLERS,
     MissingApiKeyError,
