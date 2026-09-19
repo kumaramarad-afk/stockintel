@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
 from app.models import CachedReport
+from services.report_data import fetch_all_data_sections
 from services.reasoning_report import generate_reasoning_report
 from services.stock_service import TickerNotFoundError
 from services.ticker_catalog import display_name
@@ -234,6 +235,7 @@ def public_report_payload(db: Session, ticker: str, user: Any) -> dict[str, Any]
         for key in ("average_target", "high_target", "low_target"):
             if key in valuation:
                 valuation[key] = "$$$.$$"
+    data_sections = fetch_all_data_sections(ticker)
     return {
         "ticker": raw["ticker"],
         "name": raw.get("name"),
@@ -243,6 +245,7 @@ def public_report_payload(db: Session, ticker: str, user: Any) -> dict[str, Any]
         "markdown": raw.get("markdown") if not locked else None,
         "sections": visible,
         "blurred_sections": blurred,
+        "data_sections": data_sections,
         "valuation": valuation,
         "locked_sections": ["bulls", "bears", "assumptions", "watch"] if locked else [],
         "view_access": access,

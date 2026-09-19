@@ -115,3 +115,10 @@ def market_headlines(limit: int = 12) -> list[dict[str, Any]]:
             if len(headlines) >= max(limit, 12):
                 break
     return headlines[: max(limit, 12)]
+
+
+def company_headlines(query: str, limit: int = 8) -> list[dict[str, Any]]:
+    needle = (query or "").strip()
+    if not needle:
+        return []
+    return _fetch("/everything", {"q": needle, "sortBy": "publishedAt"})[:limit]

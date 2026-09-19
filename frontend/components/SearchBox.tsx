@@ -95,16 +95,18 @@ export function SearchBox({
 
   const hint = useMemo(() => hits[active] || hits[0], [active, hits]);
 
-  function navigate(ticker: string) {
-    const symbol = ticker.trim().toUpperCase();
+  function selectResult(hit: SearchHit) {
+    const symbol = hit.ticker.trim().toUpperCase();
     if (!symbol) return;
+    setQuery(symbol);
+    setOpen(false);
+    setBusy(true);
     trackEvent("search", {
       query: lastQuery.current || query.trim(),
       results: hits.length,
       clicked: symbol,
     });
     router.push(`/research/${encodeURIComponent(symbol)}`);
-    setOpen(false);
   }
 
   async function go(rawInput: string) {
@@ -118,11 +120,11 @@ export function SearchBox({
       if (response.ok) {
         const payload = (await response.json()) as SearchHit[];
         if (Array.isArray(payload) && payload[0]?.ticker) {
-          navigate(payload[0].ticker);
+          selectResult(payload[0]);
           return;
         }
       }
-      navigate(raw);
+      selectResult({ ticker: raw.toUpperCase() });
     } finally {
       setBusy(false);
     }
@@ -134,7 +136,7 @@ export function SearchBox({
   }
 
   return (
-    <div ref={boxRef} className={`relative w-full ${className || ""}`}>
+    <div ref={boxRef} className={`relative z-30 w-full ${className || ""}`}>
       <form onSubmit={onSubmit} className={`flex flex-col gap-3 ${showButton ? "sm:flex-row" : ""}`}>
         <input
           value={query}
@@ -150,6 +152,9 @@ export function SearchBox({
             } else if (event.key === "ArrowUp") {
               event.preventDefault();
               setActive((index) => (index - 1 + hits.length) % hits.length);
+            } else if (event.key === "Enter" && hint) {
+              event.preventDefault();
+              selectResult(hint);
             } else if (event.key === "Escape") {
               setOpen(false);
             }
@@ -170,14 +175,18 @@ export function SearchBox({
         ) : null}
       </form>
       {open && query.trim() && (
-        <ul className="absolute z-20 mt-2 max-h-72 w-full overflow-auto rounded-xl border border-slate-700 bg-slate-950 shadow-xl">
+        <ul className="absolute z-50 mt-2 max-h-72 w-full overflow-auto rounded-xl border border-slate-700 bg-slate-950 shadow-xl">
           {hits.length ? (
             hits.map((hit, index) => (
               <li key={hit.ticker}>
                 <button
                   type="button"
+                  onMouseDown={(event) => {
+                    // Prevent input blur from closing before navigation.
+                    event.preventDefault();
+                    selectResult(hit);
+                  }}
                   onMouseEnter={() => setActive(index)}
-                  onClick={() => navigate(hit.ticker)}
                   className={`flex w-full items-baseline justify-between gap-3 px-4 py-3 text-left text-sm ${
                     index === active ? "bg-emerald-500/15 text-slate-50" : "text-slate-300 hover:bg-slate-900"
                   }`}
@@ -192,7 +201,6 @@ export function SearchBox({
           ) : null}
         </ul>
       )}
-      {/* Hidden helper so parents can reuse labels if needed */}
       <span className="sr-only">{hint ? labelFor(hint) : ""}</span>
     </div>
   );

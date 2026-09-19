@@ -99,6 +99,7 @@ class ReasoningReportResponse(BaseModel):
     markdown: str | None = None
     sections: dict | None = None
     blurred_sections: dict | None = None
+    data_sections: dict | None = None
     valuation: dict | None = None
     locked_sections: list[str] = Field(default_factory=list)
     view_access: str | None = None

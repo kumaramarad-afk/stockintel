@@ -1,11 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import type { ComponentProps } from "react";
 
 import { ResearchMarkdown } from "@/components/research/ResearchMarkdown";
+import { ReportDataSections } from "@/components/research/ReportDataSections";
 import { useAuth } from "@/components/layout/AuthProvider";
 import { trackEvent } from "@/lib/analytics";
 import { formatPrice } from "@/lib/format";
+
+type DataSections = NonNullable<ComponentProps<typeof ReportDataSections>["data"]>;
 
 type ReportPayload = {
   ticker: string;
@@ -32,6 +36,7 @@ type ReportPayload = {
   } | null;
   locked_sections?: string[];
   preview?: boolean;
+  data_sections?: DataSections | null;
 };
 
 function LockedSection({
@@ -213,6 +218,8 @@ export function PublicReportView({ report }: { report: ReportPayload }) {
             <ResearchMarkdown markdown={sections.disclaimer} />
           </p>
         )}
+
+        <ReportDataSections ticker={report.ticker} data={report.data_sections} />
       </div>
 
       <p className="text-sm text-slate-500">
