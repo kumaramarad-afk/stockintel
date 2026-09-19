@@ -13,14 +13,21 @@ from app.routers import (
     newsletters,
     plan_exceptions,
     research,
+    search,
     stocks,
     users,
     watchlists,
     webhooks,
 )
 from app.scheduled_tasks import start_scheduler, stop_scheduler
+from services.stock_seed import upsert_company_names
 
 ensure_user_schema()
+try:
+    upsert_company_names()
+except Exception:
+    # DB may be unavailable in some local/test contexts.
+    pass
 
 app = FastAPI(
     title="GetStockReport API",
@@ -38,6 +45,7 @@ app.add_middleware(
 
 api_prefix = "/api/v1"
 app.include_router(health.router, prefix=api_prefix)
+app.include_router(search.router, prefix=api_prefix)
 app.include_router(stocks.router, prefix=api_prefix)
 app.include_router(research.router, prefix=api_prefix)
 app.include_router(markets.router, prefix=api_prefix)

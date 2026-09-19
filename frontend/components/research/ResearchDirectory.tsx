@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+
+import { SearchBox, type SearchHit } from "@/components/SearchBox";
 
 type TickerRow = {
   ticker: string;
@@ -17,17 +19,31 @@ export function ResearchDirectory({
   tickers: TickerRow[];
   countLabel: string;
 }) {
-  const [query, setQuery] = useState("");
-  const filtered = useMemo(() => {
-    const needle = query.trim().toUpperCase();
-    if (!needle) return tickers;
-    return tickers.filter(
-      (row) =>
-        row.ticker.includes(needle) ||
-        (row.name || "").toUpperCase().includes(needle) ||
-        (row.one_line || "").toUpperCase().includes(needle),
-    );
-  }, [query, tickers]);
+  const [queryActive, setQueryActive] = useState(false);
+  const [hits, setHits] = useState<SearchHit[]>([]);
+
+  const onResultsChange = useCallback((rows: SearchHit[]) => {
+    setHits(rows);
+    setQueryActive(true);
+  }, []);
+
+  const visible = useMemo(() => {
+    if (!queryActive || hits.length === 0) {
+      // When search returned nothing for a query, show empty; when idle, show all SSR tickers.
+      if (queryActive && hits.length === 0) return [];
+      return tickers;
+    }
+    const byTicker = Object.fromEntries(tickers.map((row) => [row.ticker, row]));
+    return hits.map((hit) => {
+      const existing = byTicker[hit.ticker];
+      return {
+        ticker: hit.ticker,
+        name: hit.company_name || hit.name || existing?.name,
+        one_line: existing?.one_line,
+        price: existing?.price,
+      } satisfies TickerRow;
+    });
+  }, [hits, queryActive, tickers]);
 
   return (
     <section className="space-y-8">
@@ -37,15 +53,17 @@ export function ResearchDirectory({
         <p className="max-w-2xl text-slate-400">
           Bull case, bear case, and what has to be true — no buy/sell verdict. {countLabel}.
         </p>
-        <input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
+        <SearchBox
+          showButton={false}
+          loadAllWhenEmpty
+          debounceMs={300}
           placeholder="Search by ticker or company…"
-          className="w-full max-w-md rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-slate-100 outline-none ring-emerald-500/40 placeholder:text-slate-500 focus:ring"
+          onResultsChange={onResultsChange}
+          className="max-w-md"
         />
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
-        {filtered.map((row) => (
+        {visible.map((row) => (
           <Link
             key={row.ticker}
             href={`/research/${encodeURIComponent(row.ticker)}`}
@@ -58,12 +76,14 @@ export function ResearchDirectory({
             {row.one_line ? (
               <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-400">{row.one_line}</p>
             ) : (
-              <p className="mt-2 text-sm text-slate-500">Open research report →</p>
+              <p className="mt-2 text-sm text-slate-500">
+                {row.name ? `${row.ticker} — ${row.name}` : "Open research report →"}
+              </p>
             )}
           </Link>
         ))}
       </div>
-      {!filtered.length && <p className="text-slate-500">No tickers match that search.</p>}
+      {!visible.length && <p className="text-slate-500">No results</p>}
     </section>
   );
 }

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-# Display names for the launch / popular set. Aliases (lowercase) resolve to ticker.
+# Official display names for the launch / popular set.
 TICKER_NAMES: dict[str, str] = {
     "AAPL": "Apple Inc.",
     "MSFT": "Microsoft Corporation",
@@ -16,17 +16,17 @@ TICKER_NAMES: dict[str, str] = {
     "JPM": "JPMorgan Chase & Co.",
     "LLY": "Eli Lilly and Company",
     "V": "Visa Inc.",
-    "UNH": "UnitedHealth Group Inc.",
+    "UNH": "UnitedHealth Group Incorporated",
     "XOM": "Exxon Mobil Corporation",
-    "MA": "Mastercard Inc.",
+    "MA": "Mastercard Incorporated",
     "COST": "Costco Wholesale Corporation",
     "HD": "The Home Depot Inc.",
-    "PG": "Procter & Gamble Co.",
+    "PG": "Procter & Gamble Company",
     "JNJ": "Johnson & Johnson",
     "ABBV": "AbbVie Inc.",
     "NFLX": "Netflix Inc.",
     "CRM": "Salesforce Inc.",
-    "BAC": "Bank of America Corp.",
+    "BAC": "Bank of America Corporation",
     "AMD": "Advanced Micro Devices Inc.",
     "WMT": "Walmart Inc.",
     "KO": "The Coca-Cola Company",
@@ -54,6 +54,59 @@ TICKER_NAMES: dict[str, str] = {
     "SQ": "Block Inc.",
     "SHOP": "Shopify Inc.",
     "SNOW": "Snowflake Inc.",
+}
+
+TICKER_SECTORS: dict[str, str] = {
+    "AAPL": "Technology",
+    "MSFT": "Technology",
+    "NVDA": "Technology",
+    "AMZN": "Consumer Cyclical",
+    "GOOGL": "Communication Services",
+    "META": "Communication Services",
+    "TSLA": "Consumer Cyclical",
+    "BRK.B": "Financial Services",
+    "AVGO": "Technology",
+    "JPM": "Financial Services",
+    "LLY": "Healthcare",
+    "V": "Financial Services",
+    "UNH": "Healthcare",
+    "XOM": "Energy",
+    "MA": "Financial Services",
+    "COST": "Consumer Defensive",
+    "HD": "Consumer Cyclical",
+    "PG": "Consumer Defensive",
+    "JNJ": "Healthcare",
+    "ABBV": "Healthcare",
+    "NFLX": "Communication Services",
+    "CRM": "Technology",
+    "BAC": "Financial Services",
+    "AMD": "Technology",
+    "WMT": "Consumer Defensive",
+    "KO": "Consumer Defensive",
+    "PEP": "Consumer Defensive",
+    "MRK": "Healthcare",
+    "ADBE": "Technology",
+    "TMO": "Healthcare",
+    "PLTR": "Technology",
+    "COIN": "Financial Services",
+    "SOFI": "Financial Services",
+    "RIVN": "Consumer Cyclical",
+    "NIO": "Consumer Cyclical",
+    "LCID": "Consumer Cyclical",
+    "HOOD": "Financial Services",
+    "GME": "Consumer Cyclical",
+    "AMC": "Communication Services",
+    "MSTR": "Technology",
+    "SMCI": "Technology",
+    "ARM": "Technology",
+    "UBER": "Technology",
+    "DIS": "Communication Services",
+    "BA": "Industrials",
+    "INTC": "Technology",
+    "PYPL": "Financial Services",
+    "SQ": "Technology",
+    "SHOP": "Technology",
+    "SNOW": "Technology",
 }
 
 # Extra searchable aliases → ticker (lowercase keys).
@@ -86,6 +139,7 @@ NAME_ALIASES: dict[str, str] = {
     "home depot": "HD",
     "procter": "PG",
     "procter and gamble": "PG",
+    "procter & gamble": "PG",
     "p&g": "PG",
     "johnson": "JNJ",
     "abbvie": "ABBV",
@@ -133,67 +187,75 @@ def display_name(ticker: str) -> str | None:
     return TICKER_NAMES.get(ticker.strip().upper())
 
 
+def catalog_entries() -> list[dict[str, str]]:
+    return [
+        {"ticker": ticker, "company_name": name, "name": name, "sector": TICKER_SECTORS.get(ticker, "")}
+        for ticker, name in sorted(TICKER_NAMES.items())
+    ]
+
+
 def resolve_query_to_ticker(query: str) -> str | None:
     """Resolve a ticker or company name fragment to a single best ticker."""
-    raw = (query or "").strip()
-    if not raw:
-        return None
-    upper = raw.upper()
-    if upper in TICKER_NAMES:
-        return upper
-    lower = raw.lower()
-    if lower in NAME_ALIASES:
-        return NAME_ALIASES[lower]
-    # Exact company name (case-insensitive)
-    for ticker, name in TICKER_NAMES.items():
-        if name.lower() == lower:
-            return ticker
-    # Substring match on name / ticker / alias — prefer shortest name match
-    hits: list[tuple[int, str]] = []
-    for ticker, name in TICKER_NAMES.items():
-        if upper in ticker or lower in name.lower():
-            hits.append((len(name), ticker))
-    for alias, ticker in NAME_ALIASES.items():
-        if lower in alias or alias in lower:
-            hits.append((len(alias), ticker))
-    if not hits:
-        return None
-    hits.sort()
-    return hits[0][1]
+    hits = search_tickers(query, limit=1)
+    return hits[0]["ticker"] if hits else None
 
 
-def search_tickers(query: str, *, limit: int = 8) -> list[dict[str, str]]:
-    """Return ranked {ticker, name} matches for autocomplete."""
+def search_tickers(query: str, *, limit: int = 10) -> list[dict[str, str]]:
+    """Ranked search: exact ticker, exact company, partial ticker, partial company.
+
+    Empty query returns the full catalog alphabetically (up to limit, or all if limit is large).
+    Each hit includes ticker + company_name (+ name alias for older callers).
+    """
     raw = (query or "").strip()
     if not raw:
-        return [{"ticker": t, "name": n} for t, n in list(TICKER_NAMES.items())[:limit]]
+        return [
+            {"ticker": row["ticker"], "company_name": row["company_name"], "name": row["company_name"]}
+            for row in catalog_entries()
+        ]
+
     upper = raw.upper()
     lower = raw.lower()
+    # score buckets: 0 exact ticker, 1 exact company/alias, 2 ticker prefix, 3 company prefix, 4 company/alias substring
     scored: list[tuple[int, str, str]] = []
     seen: set[str] = set()
 
     def add(score: int, ticker: str) -> None:
-        if ticker in seen:
+        if ticker not in TICKER_NAMES or ticker in seen:
             return
         seen.add(ticker)
-        scored.append((score, ticker, TICKER_NAMES.get(ticker, ticker)))
+        name = TICKER_NAMES[ticker]
+        scored.append((score, ticker, name))
 
     if upper in TICKER_NAMES:
         add(0, upper)
+
+    for ticker, name in TICKER_NAMES.items():
+        if name.lower() == lower:
+            add(1, ticker)
     if lower in NAME_ALIASES:
-        add(0, NAME_ALIASES[lower])
+        add(1, NAME_ALIASES[lower])
+
+    for ticker in TICKER_NAMES:
+        if ticker.startswith(upper):
+            add(2, ticker)
+
     for ticker, name in TICKER_NAMES.items():
         name_l = name.lower()
-        if ticker.startswith(upper):
-            add(1, ticker)
-        elif upper in ticker:
-            add(2, ticker)
-        elif name_l.startswith(lower):
+        if name_l.startswith(lower):
             add(3, ticker)
         elif lower in name_l:
             add(4, ticker)
+
     for alias, ticker in NAME_ALIASES.items():
-        if alias.startswith(lower) or lower in alias:
-            add(3 if alias.startswith(lower) else 5, ticker)
+        if alias == lower:
+            add(1, ticker)
+        elif alias.startswith(lower):
+            add(3, ticker)
+        elif lower in alias:
+            add(4, ticker)
+
     scored.sort(key=lambda item: (item[0], item[1]))
-    return [{"ticker": t, "name": n} for _, t, n in scored[:limit]]
+    return [
+        {"ticker": ticker, "company_name": name, "name": name}
+        for _, ticker, name in scored[:limit]
+    ]

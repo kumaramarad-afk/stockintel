@@ -74,7 +74,7 @@ def research_ticker_search(q: str = Query("", max_length=64), db: Session = Depe
         rows.append(
             {
                 "ticker": match["ticker"],
-                "name": cached.get("name") or match["name"],
+                "name": cached.get("name") or match.get("company_name") or match.get("name"),
                 "one_line": cached.get("one_line"),
                 "price": cached.get("price"),
                 "as_of": cached.get("as_of"),
